@@ -167,13 +167,6 @@ contract SimplifiedSprites {
     event EventTransfer(address receiver, address to, uint amount);
     event EventDeposit(address receiver, uint amount);
 
-    // State channel information
-    address public channel;
-    bool public channelon;
-    uint public channelinstance;
-
-    modifier cannotsupportinchannel { if(!channelon) _; else revert(); } // Checks if channel is turned on before executing
-    modifier channelcannotsupport { if(channelon) _; else revert(); } //
     modifier onlyplayers { require(players[msg.sender]); _; }
 
     // Set up the simplified Sprites Channel
@@ -188,9 +181,10 @@ contract SimplifiedSprites {
     }
 
     // Allow a player to withdraw coins from the contract!
-    // NOTE: This contract cannot be executed off-chain via the state channel due to its
+    // NOTE: This function cannot be executed off-chain via the state channel due to its
     // "side-effects". i.e. you cannot "send" coins off-chain.
-    function withdraw(uint _coins) public cannotsupportinchannel onlyplayers returns (bool) {
+    // Think: If channel is ON - this should not work - needs to be client side?
+    function withdraw(uint _coins) public channel_turnedoff onlyplayers returns (bool) {
 
         // Only accept a single command during a dispute
         require(balance[msg.sender] >= _coins);
@@ -209,7 +203,7 @@ contract SimplifiedSprites {
     }
 
     // Allow a player to withdraw coins from the contract!
-    function transfer(address _to, uint _coins)  public checkchannel onlyplayers returns (bool) {
+    function transfer(address _to, uint _coins)  public channel_turnedoff onlyplayers returns (bool) {
 
         // Only accept a single command during a dispute
         require(balance[msg.sender] >= _coins);// Having a balance implies signer is in the contract
@@ -231,11 +225,12 @@ contract SimplifiedSprites {
 
     }
 
-     // Allow a player to withdraw coins from the contract!
-     // TODO: I need to think about how the state channel handles deposits / coins
-     // It is crucial that - we verify the amount of coins sent in state channel...
-     // Otherwise someone could put in a command that eats the counterparties deposit
-    function deposit(uint _coins) payable public checkchannel onlyplayers returns (bool) {
+     // Sprites can support asynchronous deposits.
+     // Our example here cannot - which is why it is "simplified".
+     // NOTE: This function cannot be executed off-chain via the state channel due to its
+     // "side-effects". i.e. you cannot "send" coins off-chain.
+     // Think: If channel is ON - this should not work - needs to be client side?
+    function deposit(uint _coins) payable public channel_turnedoff onlyplayers returns (bool) {
 
         // Only accept a single command during a dispute
         require(players[msg.sender]);
@@ -249,6 +244,21 @@ contract SimplifiedSprites {
 
         return true;
     }
+
+
+    /********************/
+    // State channel add-ons
+    // State channel variables (address, on/off) + modifiers.
+    // Create channel: Creates the state channel and locks down functionality Here
+    // Set state: Update contract's state and re-enable functionality - assuming dispute process is finished.
+    /********************/
+
+    // State channel information
+    address public channel;
+    bool public channelon;
+    uint public channelinstance;
+
+    modifier channel_turnedoff { if(channelon) revert(); else _; } // Checks if channel is turned off before executing
 
     // Create state channel and lock down functions
     function createChannel(uint256[3] sigs, uint _disputeTime) public onlyplayers {
