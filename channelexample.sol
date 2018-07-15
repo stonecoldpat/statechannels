@@ -177,7 +177,8 @@ contract SimplifiedSprites {
         players[_players[1]] = true;
         playerslist = _players;
 
-        // TODO: Instantiate state channel here (and store address!)
+        // Channel could be instantited here; or
+        // we can do it via "createChannel()". 
     }
 
     // Allow a player to withdraw coins from the contract!
