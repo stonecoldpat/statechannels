@@ -6,7 +6,7 @@ contract Battleship {
     After game is Created, both players commit to their boards
     During the game, the state is either Attack or Reveal
     */
-    enum GameState { Created, Attack, Reveal, Finished }
+    enum GameState { Created, Attack, Reveal, WinClaimed, Finished }
     
     uint8 turn; //0 if players[0] turn, 1 if players[1] turn
     GameState gameState;
@@ -14,6 +14,8 @@ contract Battleship {
     address[2] players;
     address winner;
     Board[2] boards;
+    
+    uint256 lastUpdateHeight;
     
     /*
     coordinates of the last tile that has been attacked
@@ -248,6 +250,63 @@ contract Battleship {
         }
         if (cheating) {
             declareWinner(1-idx);
+        }
+    }
+    
+    /*
+    Fraud proof for adjacent or overlapping ships
+    Can be called during the game or once one player has claimed to win the game
+    */
+    function adjacentOrOverlapping(uint8 shipIdx1, uint8 shipIdx2) onlyPlayers() {
+        require(gameState != GameState.Finished);
+        
+        // idx of other player
+        uint8 playerIdx = 1;
+        if(msg.sender == players[1]) {
+            playerIdx = 0;
+        }
+        require(gameState == GameState.WinClaimed || (boards[playerIdx].ships[shipIdx1].sunk && boards[playerIdx].ships[shipIdx2].sunk));
+        bool cheated = (boards[playerIdx].ships[shipIdx2].x1 >= boards[playerIdx].ships[shipIdx1].x1 - 1
+                    &&  boards[playerIdx].ships[shipIdx2].x1 <= boards[playerIdx].ships[shipIdx1].x1 + 1
+                    &&  boards[playerIdx].ships[shipIdx2].y1 >= boards[playerIdx].ships[shipIdx1].y1 - 1
+                    &&  boards[playerIdx].ships[shipIdx2].y1 <= boards[playerIdx].ships[shipIdx1].y1 + 1);
+        cheated = cheated || 
+                       (boards[playerIdx].ships[shipIdx2].x1 >= boards[playerIdx].ships[shipIdx1].x2 - 1
+                    &&  boards[playerIdx].ships[shipIdx2].x1 <= boards[playerIdx].ships[shipIdx1].x2 + 1
+                    &&  boards[playerIdx].ships[shipIdx2].y1 >= boards[playerIdx].ships[shipIdx1].y2 - 1
+                    &&  boards[playerIdx].ships[shipIdx2].y1 <= boards[playerIdx].ships[shipIdx1].y2 + 1);
+        cheated = cheated || 
+                       (boards[playerIdx].ships[shipIdx2].x2 >= boards[playerIdx].ships[shipIdx1].x1 - 1
+                    &&  boards[playerIdx].ships[shipIdx2].x2 <= boards[playerIdx].ships[shipIdx1].x1 + 1
+                    &&  boards[playerIdx].ships[shipIdx2].y2 >= boards[playerIdx].ships[shipIdx1].y1 - 1
+                    &&  boards[playerIdx].ships[shipIdx2].y2 <= boards[playerIdx].ships[shipIdx1].y1 + 1);
+        cheated = cheated || 
+                       (boards[playerIdx].ships[shipIdx2].x2 >= boards[playerIdx].ships[shipIdx1].x2 - 1
+                    &&  boards[playerIdx].ships[shipIdx2].x2 <= boards[playerIdx].ships[shipIdx1].x2 + 1
+                    &&  boards[playerIdx].ships[shipIdx2].y2 >= boards[playerIdx].ships[shipIdx1].y2 - 1
+                    &&  boards[playerIdx].ships[shipIdx2].y2 <= boards[playerIdx].ships[shipIdx1].y2 + 1);
+        if (cheated) {
+            declareWinner(1-playerIdx);
+        }
+        
+    }
+    
+    /*
+    Allows the players to claim the win if the other player takes too long to take his turn
+    */
+    function timeout() public onlyPlayers() {
+        require(gameState == GameState.Attack || gameState == GameState.Reveal);
+        if (block.number > lastUpdateHeight + 20) {
+            declareWinner(1-turn);
+        }
+    }
+    
+    /*
+    Allows the players to finalize the game after the period for fraud proof submission is over
+    */
+    function finishGame() public onlyPlayers() onlyState(GameState.WinClaimed) {
+        if (block.number > lastUpdateHeight + 20) {
+            gameState = GameState.Finished;
         }
     }
     
