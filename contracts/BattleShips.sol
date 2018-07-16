@@ -37,6 +37,7 @@ contract Battleship {
         bytes32 commitment;
         uint128 randomness;
         bool ship;
+        bool revealed;
     }
     
     /*
@@ -183,73 +184,125 @@ contract Battleship {
     */
     function checkBoard(uint8 idx, uint128[20] shipFieldRandomness, uint128[10] shipRandomness, uint8[10] shipX1, uint8[10] shipY1, uint8[10] shipX2, uint8[10] shipY2)  public {
         uint8 size;
+        uint8 revealed;
         uint8 x;
         uint8 y;
-        bool cheating;
-        for (uint8 i = 0; i<10 && !cheating; i++) {
+        for (uint8 i = 0; i<10; i++) {
             if (!boards[idx].ships[i].sunk) {
-                size = 0;
-                cheating = false;
                 // if the ship has been sunk, the locations have already been checked, otherwise check that they are actually on the board
+                size = 0;
+                revealed = 0;
+                
+                // ship has to be tiles in a line, second coordinate has to be larger
                 if (!(shipX1[i] <= shipX2[i] && shipY1[i] <= shipY2[i] && (shipX1[i] == shipX2[i] || shipY1[i] == shipY2[i]))) {
-                    cheating = true;
-                    break;
+                    //cheating
+                    declareWinner(1-idx);
+                    return;
                 }
                 // check ship commitment
                 if (keccak256(abi.encodePacked(shipRandomness[i], shipX1[i], shipY1[i], shipX2[i], shipY2[i])) != boards[idx].ships[i].commitment) {
-                     cheating = true;   
-                     break;
+                    //cheating
+                    declareWinner(1-idx);
+                    return;
                 }
-                if (i < 4) {
-                    if (!(shipX1[i] == shipX2[i] && shipY1[i] == shipY2[i] && keccak256(abi.encodePacked(shipFieldRandomness[i], true)) == boards[idx].board[shipX1[i]][shipY1[i]].commitment)) {
-                         cheating = true;
-                         break;
+                // check tile commitments for each ship size and check that at least one tile per ship was not revealed during the game
+                if (i < 4) { 
+                    //size 1
+                    if (boards[idx].board[shipX1[i]][shipY1[i]].revealed || !(shipX1[i] == shipX2[i] && shipY1[i] == shipY2[i] && keccak256(abi.encodePacked(shipFieldRandomness[i], true)) == boards[idx].board[shipX1[i]][shipY1[i]].commitment)) {
+                         //cheating
+                         declareWinner(1-idx);
+                         return;
                      }
                 } else if (i < 7) {
                     // ship of size 2
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
                          for (y = shipY1[i]; y <= shipY2[i]; y++){
                              size++;
-                             if (keccak256(abi.encodePacked(shipFieldRandomness[4+(i-4)*2+size], true)) != boards[idx].board[shipX1[i]][shipY1[i]].commitment){
-                                 cheating = true;
+                             if (boards[idx].board[x][y].revealed) {
+                                 // count number of tiles revealed during the game
+                                 revealed++;
+                                 if (!boards[idx].board[x][y].ship) {
+                                    // one of the tiles indicated water
+                                    declareWinner(1-idx);
+                                    return;
+                                 }
+                             }
+                             if (keccak256(abi.encodePacked(shipFieldRandomness[4+(i-4)*2+size], true)) != boards[idx].board[x][y].commitment){
+                                 //cheating
+                                 declareWinner(1-idx);
+                                 return;
                              }
                          }   
                      }
                      if (size != 2) {
-                         cheating = true;
+                        //cheating
+                        declareWinner(1-idx);
+                        return;
                      }
                 } else if (i < 9) {
                     // ship of size 3
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
                          for (y = shipY1[i]; y <= shipY2[i]; y++){
                              size++;
-                             if (keccak256(abi.encodePacked(shipFieldRandomness[10+(i-7)*3+size], true)) != boards[idx].board[shipX1[i]][shipY1[i]].commitment){
-                                 cheating = true;
+                             if (boards[idx].board[x][y].revealed) {
+                                 // count number of tiles revealed during the game
+                                 revealed++;
+                                 if (!boards[idx].board[x][y].ship) {
+                                    // one of the tiles indicated water
+                                    declareWinner(1-idx);
+                                    return;
+                                 }
+                             }
+                             if (keccak256(abi.encodePacked(shipFieldRandomness[10+(i-7)*3+size], true)) != boards[idx].board[x][y].commitment){
+                                //cheating
+                                declareWinner(1-idx);
+                                return;
                              }
                          }   
                      }
                      if (size != 3) {
-                         cheating = true;
+                        //cheating
+                        declareWinner(1-idx);
+                        return;
                      }
                 } else {
                      // ship of size 4
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
                          for (y = shipY1[i]; y <= shipY2[i]; y++){
                              size++;
-                             if (keccak256(abi.encodePacked(shipFieldRandomness[16+size], true)) != boards[idx].board[shipX1[i]][shipY1[i]].commitment){
-                                 cheating = true;
+                             if (boards[idx].board[x][y].revealed) {
+                                 // count number of tiles revealed during the game
+                                 revealed++;
+                                 if (!boards[idx].board[x][y].ship) {
+                                    // one of the tiles indicated water
+                                    declareWinner(1-idx);
+                                    return;
+                                 }
+                             }
+                             if (keccak256(abi.encodePacked(shipFieldRandomness[16+size], true)) != boards[idx].board[x][y].commitment){
+                                //cheating
+                                declareWinner(1-idx);
+                                return;
                              }
                          }   
                      }
                      if (size != 4) {
-                         cheating = true;
+                        //cheating
+                        declareWinner(1-idx);
+                        return;
                      }
                 }
-                
+                if (revealed == size) {
+                    // the ship should have been revealed during the game but wasn't
+                    declareWinner(1-idx);
+                    return;
+                }
+                // add ship coordinates to contract
+                boards[idx].ships[i].x1 = shipX1[i];
+                boards[idx].ships[i].y1 = shipY1[i];
+                boards[idx].ships[i].x2 = shipX2[i];
+                boards[idx].ships[i].y2 = shipY2[i];
             }
-        }
-        if (cheating) {
-            declareWinner(1-idx);
         }
     }
     
@@ -309,11 +362,4 @@ contract Battleship {
             gameState = GameState.Finished;
         }
     }
-    
-    /* 
-    Notes:
-    - TODO: fraud proof for overlapping/adjacent ships
-    - TODO: add ships to board in checkBoard function
-    - TODO: in checking functon, check if ship has not been revealed but all tiles of the ship have been
-    */
 }
