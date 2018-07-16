@@ -2,6 +2,7 @@ pragma solidity ^0.4.24;
 
 contract Battleship {
    
+   // test
    enum GameState { Created, Attack, Reveal, Finished }
    
    uint8 turn; //0 if players[0] turn, 1 if players[1] turn
