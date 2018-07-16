@@ -1,6 +1,6 @@
 pragma solidity ^0.4.24;
 
-contract Battleship {
+contract BattleShips {
    
    // test
    enum GameState { Created, Attack, Reveal, Finished }
