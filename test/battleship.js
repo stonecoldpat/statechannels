@@ -39,12 +39,24 @@ contract('BattleShips', function (accounts) {
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]   
+    
+    const p1boardLiar = 
+       [[1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+        [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+        [1, 0, 1, 0, 1, 0, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]   
 
     let p1boardCommits = []
     let p1boardBits = []
     let p1shipCommits = []  
     let p1shipBits = []
-   
+
     let shipSquareBits = [] 
 
     before( async () => {
@@ -123,6 +135,7 @@ contract('BattleShips', function (accounts) {
     })
 
     it('player 1 attacks a spot', async () => {
+        // player 1 attacks (0,2)
         turn = await battleship.turn.call()
         assert( turn.eq(0) )
 
@@ -146,6 +159,7 @@ contract('BattleShips', function (accounts) {
     })
 
     it('player 1 hits the board again', async () => {
+        // player 1 attacks (1,2)
         tx = await battleship.attack(1, 2, {from: player1})
     
         log = tx.logs.find(log => log.event == 'Attack')
@@ -161,6 +175,7 @@ contract('BattleShips', function (accounts) {
     })
 
     it('player1 sinks the boat', async () => {
+        // player 1 attacks (2,2)
         tx = await battleship.attack(2, 2, {from: player1})
     
         log = tx.logs.find(log => log.event == 'Attack')
@@ -177,6 +192,7 @@ contract('BattleShips', function (accounts) {
     })
 
     it('player1 turn over with a miss', async () => {
+        // player 1 attacks (6,6)
         tx = await battleship.attack(6, 6, {from: player1})
     
         log = tx.logs.find(log => log.event == 'Attack')
@@ -193,15 +209,14 @@ contract('BattleShips', function (accounts) {
     })
 
     it('player 2 attacks', async () => {
+        // player 2 attacks (3,0)
         tx = await battleship.attack(3, 0, {from: player2})
 
         log = tx.logs.find(log => log.event == 'Attack')
         assert.equal(log.args.player, player2)
         assert(log.args.x.eq(3))
         assert(log.args.y.eq(0))
-    })
-
-    it('player 1 reveals a hit', async () => {
+        
         tx = await battleship.reveal(p1boardBits[3][0], p1board[3][0] == 1, {from: player1})
 
         log = tx.logs.find(log => log.event == 'Reveal')
@@ -209,31 +224,267 @@ contract('BattleShips', function (accounts) {
         assert.equal(log.args.hit, true)
     })
 
-//    it('player 1 lies about a hit', async () => {
-//        // check turn
-//        turn = await battleship.turn.call()
-//        assert( turn.eq(1) )
-//
-//        // player 2 hits player 1's ship
-//        tx = await battleship.attack(8, 0, {from: player2})
-//
-//        log = tx.logs.find(log => log.event == 'Attack')
-//        assert.equal(log.args.player, player2)
-//        assert(log.args.x.eq(8))
-//        assert(log.args.y.eq(0))
-//        
-//        // player 1 reveals that it was a 'miss'
-//        tx = await battleship.reveal(p1boardBits[3][0], false, {from: player1})
-//   
-//        log = tx.logs.find(log => log.event == 'Reveal')
-//        assert.equal(log.args.player, player1)
-//        assert.equal(log.args.hit, false)
-//    })  
+    it('finish the game and claim winner', async () => {
+        // player 2 sink 4x1
+        let movesp2 = [[2,0], [1,0], [0,0]] 
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[9], 9, p1ships[9][0], p1ships[9][1], p1ships[9][2], p1ships[9][3], {from: player1})
+
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(9))
+                console.log('4x1 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+
+        // player 2 sink 3x1
+        movesp2 = [[0,2], [1,2], [2,2]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[8], 8, p1ships[8][0], p1ships[8][1], p1ships[8][2], p1ships[8][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(8))
+                console.log('3x1 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+        // player 2 sinks 3x2
+        movesp2 = [[0,4], [1,4], [2,4]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[7], 7, p1ships[7][0], p1ships[7][1], p1ships[7][2], p1ships[7][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(7))
+                console.log('3x2 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+        // player 2 sinks 2x1
+        movesp2 = [[0,6], [1,6]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[6], 6, p1ships[6][0], p1ships[6][1], p1ships[6][2], p1ships[6][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(6))
+                console.log('2x1 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+        // player 2 sinks 2x2
+        movesp2 = [[0,8], [1,8]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[5], 5, p1ships[5][0], p1ships[5][1], p1ships[5][2], p1ships[5][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(5))
+                console.log('2x2 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+        // player 2 sinks 2x3
+        movesp2 = [[8,0], [9,0]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[4], 4, p1ships[4][0], p1ships[4][1], p1ships[4][2], p1ships[4][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(4))
+                console.log('2x3 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+        // player 2 sinkx 1x1
+        movesp2 = [[9,2]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[3], 3, p1ships[3][0], p1ships[3][1], p1ships[3][2], p1ships[3][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(3))
+                console.log('1x1 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+        // player 2 sinks 1x2
+        movesp2 = [[9,4]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[2], 2, p1ships[2][0], p1ships[2][1], p1ships[2][2], p1ships[2][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(2))
+                console.log('1x2 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+        // player 2 sinks 1x3
+        movesp2 = [[9,6]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[1], 1, p1ships[1][0], p1ships[1][1], p1ships[1][2], p1ships[1][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(1))
+                console.log('1x3 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+
+        // player 2 sinks 1x4
+        movesp2 = [[9,8]]
+        for (var i = 0; i < movesp2.length; i++) {
+            var move = movesp2[i]
+            tx = await battleship.attack(move[0], move[1], {from: player2})
+            log = tx.logs.find(log => log.event == 'Attack')
+            assert.equal(log.args.player, player2)
+            assert(log.args.x.eq(move[0]))
+            assert(log.args.y.eq(move[1]))
+
+            if (i == movesp2.length-1) {
+                tx = await battleship.revealSink(p1boardBits[move[0]][move[1]], p1shipBits[0], 0, p1ships[0][0], p1ships[0][1], p1ships[0][2], p1ships[0][3], {from: player1})
+                log = tx.logs.find(log => log.event == 'RevealSink')
+                assert.equal(log.args.player, player1)
+                assert(log.args.shipidx.eq(0))
+                console.log('1x4 sank!')
+            } else {
+                tx = await battleship.reveal(p1boardBits[move[0]][move[1]], p1board[move[0]][move[1]] == 1, {from: player1})
+                log = tx.logs.find(log => log.event == 'Reveal')
+                assert.equal(log.args.player, player1)
+                assert.equal(log.args.hit, true)
+            }
+        }
+    })
 
     it('player 2 says fuck it and reveals his board', async () => {
         tx = await battleship.checkBoard(1, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player2})
         log = tx.logs.find(log => log.event == 'Winner')
         assert.equal(log, undefined)
+    })
+
+    it('player 1 reveals his board since the game is over', async () => {
+        tx = await battleship.checkBoard(0, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player1})
+        log = tx.logs.find(log => log.event == 'Winner')
+        assert.equal(log, undefined)
+    })
+
+    it('player 2 claims victory', async () => {
+        tx = await battleship.claimWin({from: player2})
+        
+        log = tx.logs.find(log => log.event == 'Winner')
+        assert.equal(log.args.player, player2)
     })
 
 })
