@@ -14,6 +14,7 @@ contract BattleShips {
     address[2] public players;
     address public winner;
     Board[2] public boards;
+    Ships[2] ships;
     
     // TODO: set this after every action
     uint256 public lastUpdateHeight;
@@ -25,34 +26,29 @@ contract BattleShips {
     uint8 public lastY;
  
     /*
-    commitment is a hash of (randomness,ship)
-    randomness, ship are revealed during the game if Tile is hit
-    */
-    struct Tile {
-        bytes32 commitment;
-        uint128 randomness;
-        bool ship;
-        bool revealed;
-    }
-    
-    /*
     commitment is hash of (randomness, x1, y1, x2, y2) 
     where (x1, y1) is the starting coordinate and (x2,y2) is the end coordinate
     x1 <= x2, y1 <= y2
     */
-    struct Ship {
-        bytes32 commitment;
-        uint128 randomness;
-        uint8 x1;
-        uint8 y1;
-        uint8 x2;
-        uint8 y2;
-        bool sunk;
+    struct Ships {
+        bytes32[10] commitments;
+        uint128[10] randomness;
+        uint8[10] x1;
+        uint8[10] y1;
+        uint8[10] x2;
+        uint8[10] y2;
+        bool[10] sunk;
     }
     
     struct Board {
-        Tile[10][10] board;
-        Ship[10] ships;
+        /*
+        commitment is a hash of (randomness,shipTile)
+        randomness, ship are revealed during the game if Tile is hit
+        */
+        bytes32[10][10] commitments;
+        uint128[10][10] randomness;
+        bool[10][10] shipTile;
+        bool[10][10] revealed;
         bool committed;
     }
     
@@ -119,14 +115,14 @@ contract BattleShips {
     reveal last attacked tile if no ship has been sunk by a hit
     */ 
     function reveal(uint128 randomness, bool ship) onlyPlayerTurn() onlyState(GameState.Reveal) public {
-        if (keccak256(abi.encodePacked(randomness, ship)) == boards[turn].board[lastX][lastY].commitment) {
-            boards[turn].board[lastX][lastY].ship = ship;
-            boards[turn].board[lastX][lastY].randomness = randomness;
-            boards[turn].board[lastX][lastY].revealed = true;
-             if (ship) {
-                 turn = 1 - turn;
-             }
-             gameState = GameState.Attack;
+        if (keccak256(abi.encodePacked(randomness, ship)) == boards[turn].commitments[lastX][lastY]) {
+            boards[turn].shipTile[lastX][lastY] = ship;
+            boards[turn].randomness[lastX][lastY] = randomness;
+            boards[turn].revealed[lastX][lastY] = true;
+            if (ship) {
+                turn = 1 - turn;
+            }
+            gameState = GameState.Attack;
             emit Reveal(msg.sender, ship);
         } else {
             declareWinner(1 - turn);
@@ -134,43 +130,41 @@ contract BattleShips {
     }
     
     function isSunk(uint8 player, uint8 shipidx, uint8 x1, uint8 x2, uint8 y1, uint8 y2) public returns (bool) {
-        Ship storage board = boards[player].ships[shipidx];
-        require(board.x1 == x1);
-        require(board.y1 == y1);
-        require(board.x2 == x2);
-        require(board.y2 == y2);
+        require(ships[player].x1[shipidx] == x1);
+        require(ships[player].y1[shipidx] == y1);
+        require(ships[player].x2[shipidx] == x2);
+        require(ships[player].y2[shipidx] == y2);
 
-        return board.sunk;
+        return ships[player].sunk[shipidx];
     }
 
     /*
     reveal last attacked tile if a ship has been sunk by a hit
     in that case, the ship also has to be revealed
     */ 
-
     function revealSink(uint128 fieldRandomness, uint128 shipRandomness, uint8 shipIdx, uint8 shipx1, uint8 shipy1, uint8 shipx2, uint8 shipy2) onlyPlayerTurn() onlyState(GameState.Reveal) public {
-         if (keccak256(abi.encodePacked(fieldRandomness, true)) == boards[turn].board[lastX][lastY].commitment
-                 && keccak256(abi.encodePacked(shipRandomness, shipx1, shipy1, shipx2, shipy2)) == boards[turn].ships[shipIdx].commitment
+        if (keccak256(abi.encodePacked(fieldRandomness, true)) == boards[turn].commitments[lastX][lastY]
+                 && keccak256(abi.encodePacked(shipRandomness, shipx1, shipy1, shipx2, shipy2)) == ships[turn].commitments[shipIdx]
                  && lastX >= shipx1 && lastX <= shipx2
                  && lastY >= shipy1 && lastY <= shipy2
                  && (shipx1 == shipx2 || shipy1 == shipy2)) {
-            boards[turn].board[lastX][lastY].ship = true;
-            boards[turn].board[lastX][lastY].randomness = fieldRandomness;
-            boards[turn].board[lastX][lastY].revealed = true;
+            boards[turn].shipTile[lastX][lastY] = true;
+            boards[turn].randomness[lastX][lastY] = fieldRandomness;
+            boards[turn].revealed[lastX][lastY] = true;
              
-            boards[turn].ships[shipIdx].randomness = shipRandomness;
-            boards[turn].ships[shipIdx].x1 = shipx1;
-            boards[turn].ships[shipIdx].y1 = shipy1;
-            boards[turn].ships[shipIdx].x2 = shipx2;
-            boards[turn].ships[shipIdx].y2 = shipy2;
-            boards[turn].ships[shipIdx].sunk = true;
+            ships[turn].randomness[shipIdx] = shipRandomness;
+            ships[turn].x1[shipIdx] = shipx1;
+            ships[turn].y1[shipIdx] = shipy1;
+            ships[turn].x2[shipIdx] = shipx2;
+            ships[turn].y2[shipIdx] = shipy2;
+            ships[turn].sunk[shipIdx] = true;
             
             emit RevealSink(msg.sender, shipIdx);
  
             // check that all tiles of the ship have been hit and contain a ship
             for (uint8 x = shipx1; x <= shipx2; x++){
                 for (uint8 y = shipy1; y <= shipy2; y++){
-                    if (!boards[turn].board[x][y].ship) {
+                    if (!boards[turn].shipTile[x][y]) {
                         // cheating, either tile hasn't been revealed or indicated water
                         declareWinner(1-turn);
                         return;
@@ -191,7 +185,7 @@ contract BattleShips {
             idx = 1;
          }
          for (uint8 i = 0; i<10; i++) {
-             require(boards[1-idx].ships[i].sunk);
+             require(ships[1-idx].sunk[i]);
          }
          // TODO: check board of winner
          declareWinner(idx);
@@ -208,18 +202,12 @@ contract BattleShips {
         if(msg.sender == players[1]) {
             idx = 1;
         }
-        for (uint8 i = 0; i<10; i++) {
-             for (uint8 j = 0; j<10;j++) {
-                 boards[idx].board[i][j].commitment = boardCommitments[i][j];
-             }
-         }
-         for (i = 0; i<10;i++) {
-             boards[idx].ships[i].commitment = shipCommitments[i];
-         }
-         boards[idx].committed = true;
-         if (boards[0].committed && boards[1].committed) {
+        boards[idx].commitments = boardCommitments;
+        ships[idx].commitments = shipCommitments;
+        boards[idx].committed = true;
+        if (boards[0].committed && boards[1].committed) {
             gameState = GameState.Attack;
-         }
+        }
 
         emit BoardCommit(msg.sender);
     }
@@ -235,7 +223,7 @@ contract BattleShips {
         uint8 x;
         uint8 y;
         for (uint8 i = 0; i<10; i++) {
-            if (!boards[idx].ships[i].sunk) {
+            if (!ships[idx].sunk[i]) {
                 // if the ship has been sunk, the locations have already been checked, otherwise check that they are actually on the board
                 size = 0;
                 revealed = 0;
@@ -247,7 +235,7 @@ contract BattleShips {
                     return;
                 }
                 // check ship commitment
-                if (keccak256(abi.encodePacked(shipRandomness[i], shipX1[i], shipY1[i], shipX2[i], shipY2[i])) != boards[idx].ships[i].commitment) {
+                if (keccak256(abi.encodePacked(shipRandomness[i], shipX1[i], shipY1[i], shipX2[i], shipY2[i])) != ships[idx].commitments[i]) {
                     //cheating
                     declareWinner(1-idx);
                     return;
@@ -255,52 +243,52 @@ contract BattleShips {
                 // check tile commitments for each ship size and check that at least one tile per ship was not revealed during the game
                 if (i < 4) { 
                     //size 1
-                    if (boards[idx].board[shipX1[i]][shipY1[i]].revealed || !(shipX1[i] == shipX2[i] && shipY1[i] == shipY2[i] && keccak256(abi.encodePacked(shipFieldRandomness[i], true)) == boards[idx].board[shipX1[i]][shipY1[i]].commitment)) {
-                         //cheating
-                         declareWinner(1-idx);
-                         return;
-                     }
+                    if (boards[idx].revealed[shipX1[i]][shipY1[i]] || !(shipX1[i] == shipX2[i] && shipY1[i] == shipY2[i] && keccak256(abi.encodePacked(shipFieldRandomness[i], true)) == boards[idx].commitments[shipX1[i]][shipY1[i]])) {
+                        //cheating
+                        declareWinner(1-idx);
+                        return;
+                    }
                     size++;
                 } else if (i < 7) {
                     // ship of size 2
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
-                         for (y = shipY1[i]; y <= shipY2[i]; y++){
-                             if (boards[idx].board[x][y].revealed) {
-                                 // count number of tiles revealed during the game
-                                 revealed++;
-                                 if (!boards[idx].board[x][y].ship) {
+                        for (y = shipY1[i]; y <= shipY2[i]; y++){
+                            if (boards[idx].revealed[x][y]) {
+                                // count number of tiles revealed during the game
+                                revealed++;
+                                if (!boards[idx].shipTile[x][y]) {
                                     // one of the tiles indicated water
                                     declareWinner(1-idx);
                                     return;
-                                 }
-                             }
-                             if (keccak256(abi.encodePacked(shipFieldRandomness[4+(i-4)*2+size], true)) != boards[idx].board[x][y].commitment){
-                                 //cheating
-                                 declareWinner(1-idx);
-                                 return;
-                             }
-                             size++;
-                         }   
-                     }
-                     if (size != 2) {
+                                }
+                            }
+                            if (keccak256(abi.encodePacked(shipFieldRandomness[4+(i-4)*2+size], true)) != boards[idx].commitments[x][y]){
+                                //cheating
+                                declareWinner(1-idx);
+                                return;
+                            }
+                            size++;
+                        }   
+                    }
+                    if (size != 2) {
                         //cheating
                         declareWinner(1-idx);
                         return;
-                     }
+                    }
                 } else if (i < 9) {
                     // ship of size 3
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
-                         for (y = shipY1[i]; y <= shipY2[i]; y++){
-                             if (boards[idx].board[x][y].revealed) {
-                                 // count number of tiles revealed during the game
-                                 revealed++;
-                                 if (!boards[idx].board[x][y].ship) {
+                        for (y = shipY1[i]; y <= shipY2[i]; y++){
+                            if (boards[idx].revealed[x][y]) {
+                                // count number of tiles revealed during the game
+                                revealed++;
+                                if (!boards[idx].shipTile[x][y]) {
                                     // one of the tiles indicated water
                                     declareWinner(1-idx);
                                     return;
-                                 }
-                             }
-                             if (keccak256(abi.encodePacked(shipFieldRandomness[10+(i-7)*3+size], true)) != boards[idx].board[x][y].commitment){
+                                }
+                            }
+                            if (keccak256(abi.encodePacked(shipFieldRandomness[10+(i-7)*3+size], true)) != boards[idx].commitments[x][y]){
                                 //cheating
                                 declareWinner(1-idx);
                                 return;
@@ -316,17 +304,17 @@ contract BattleShips {
                 } else {
                      // ship of size 4
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
-                         for (y = shipY1[i]; y <= shipY2[i]; y++){
-                             if (boards[idx].board[x][y].revealed) {
-                                 // count number of tiles revealed during the game
-                                 revealed++;
-                                 if (!boards[idx].board[x][y].ship) {
+                        for (y = shipY1[i]; y <= shipY2[i]; y++){
+                            if (boards[idx].revealed[x][y]) {
+                                // count number of tiles revealed during the game
+                                revealed++;
+                                if (!boards[idx].shipTile[x][y]) {
                                     // one of the tiles indicated water
                                     declareWinner(1-idx);
                                     return;
-                                 }
-                             }
-                             if (keccak256(abi.encodePacked(shipFieldRandomness[16+size], true)) != boards[idx].board[x][y].commitment){
+                                }
+                            }
+                            if (keccak256(abi.encodePacked(shipFieldRandomness[16+size], true)) != boards[idx].commitments[x][y]){
                                 //cheating
                                 declareWinner(1-idx);
                                 return;
@@ -338,7 +326,7 @@ contract BattleShips {
                         //cheating
                         declareWinner(1-idx);
                         return;
-                     }
+                    }
                 }
                 if (revealed == size) {
                     // the ship should have been revealed during the game but wasn't
@@ -346,10 +334,10 @@ contract BattleShips {
                     return;
                 }
                 // add ship coordinates to contract
-                boards[idx].ships[i].x1 = shipX1[i];
-                boards[idx].ships[i].y1 = shipY1[i];
-                boards[idx].ships[i].x2 = shipX2[i];
-                boards[idx].ships[i].y2 = shipY2[i];
+                ships[idx].x1[i] = shipX1[i];
+                ships[idx].y1[i] = shipY1[i];
+                ships[idx].x2[i] = shipX2[i];
+                ships[idx].y2[i] = shipY2[i];
             }
         }
     }
@@ -366,26 +354,26 @@ contract BattleShips {
         if(msg.sender == players[1]) {
             playerIdx = 0;
         }
-        require(gameState == GameState.WinClaimed || (boards[playerIdx].ships[shipIdx1].sunk && boards[playerIdx].ships[shipIdx2].sunk));
-        bool cheated = (boards[playerIdx].ships[shipIdx2].x1 >= boards[playerIdx].ships[shipIdx1].x1 - 1
-                    &&  boards[playerIdx].ships[shipIdx2].x1 <= boards[playerIdx].ships[shipIdx1].x1 + 1
-                    &&  boards[playerIdx].ships[shipIdx2].y1 >= boards[playerIdx].ships[shipIdx1].y1 - 1
-                    &&  boards[playerIdx].ships[shipIdx2].y1 <= boards[playerIdx].ships[shipIdx1].y1 + 1);
-        cheated = cheated || 
-                       (boards[playerIdx].ships[shipIdx2].x1 >= boards[playerIdx].ships[shipIdx1].x2 - 1
-                    &&  boards[playerIdx].ships[shipIdx2].x1 <= boards[playerIdx].ships[shipIdx1].x2 + 1
-                    &&  boards[playerIdx].ships[shipIdx2].y1 >= boards[playerIdx].ships[shipIdx1].y2 - 1
-                    &&  boards[playerIdx].ships[shipIdx2].y1 <= boards[playerIdx].ships[shipIdx1].y2 + 1);
-        cheated = cheated || 
-                       (boards[playerIdx].ships[shipIdx2].x2 >= boards[playerIdx].ships[shipIdx1].x1 - 1
-                    &&  boards[playerIdx].ships[shipIdx2].x2 <= boards[playerIdx].ships[shipIdx1].x1 + 1
-                    &&  boards[playerIdx].ships[shipIdx2].y2 >= boards[playerIdx].ships[shipIdx1].y1 - 1
-                    &&  boards[playerIdx].ships[shipIdx2].y2 <= boards[playerIdx].ships[shipIdx1].y1 + 1);
-        cheated = cheated || 
-                       (boards[playerIdx].ships[shipIdx2].x2 >= boards[playerIdx].ships[shipIdx1].x2 - 1
-                    &&  boards[playerIdx].ships[shipIdx2].x2 <= boards[playerIdx].ships[shipIdx1].x2 + 1
-                    &&  boards[playerIdx].ships[shipIdx2].y2 >= boards[playerIdx].ships[shipIdx1].y2 - 1
-                    &&  boards[playerIdx].ships[shipIdx2].y2 <= boards[playerIdx].ships[shipIdx1].y2 + 1);
+        require(gameState == GameState.WinClaimed || (ships[playerIdx].sunk[shipIdx1] && ships[playerIdx].sunk[shipIdx2]));
+        bool cheated = (ships[playerIdx].x1[shipIdx2] >= ships[playerIdx].x1[shipIdx1] - 1
+                    &&  ships[playerIdx].x1[shipIdx2] <= ships[playerIdx].x1[shipIdx1] + 1
+                    &&  ships[playerIdx].y1[shipIdx2] >= ships[playerIdx].y1[shipIdx1] - 1
+                    &&  ships[playerIdx].y1[shipIdx2] <= ships[playerIdx].y1[shipIdx1] + 1);
+        cheated = cheated ||
+                       (ships[playerIdx].x1[shipIdx2] >= ships[playerIdx].x2[shipIdx1] - 1
+                    &&  ships[playerIdx].x1[shipIdx2] <= ships[playerIdx].x2[shipIdx1] + 1
+                    &&  ships[playerIdx].y1[shipIdx2] >= ships[playerIdx].y2[shipIdx1] - 1
+                    &&  ships[playerIdx].y1[shipIdx2] <= ships[playerIdx].y2[shipIdx1] + 1);
+        cheated = cheated ||                                                
+                       (ships[playerIdx].x2[shipIdx2] >= ships[playerIdx].x1[shipIdx1] - 1
+                    &&  ships[playerIdx].x2[shipIdx2] <= ships[playerIdx].x1[shipIdx1] + 1
+                    &&  ships[playerIdx].y2[shipIdx2] >= ships[playerIdx].y1[shipIdx1] - 1
+                    &&  ships[playerIdx].y2[shipIdx2] <= ships[playerIdx].y1[shipIdx1] + 1);
+        cheated = cheated ||                                                
+                       (ships[playerIdx].x2[shipIdx2] >= ships[playerIdx].x2[shipIdx1] - 1
+                    &&  ships[playerIdx].x2[shipIdx2] <= ships[playerIdx].x2[shipIdx1] + 1
+                    &&  ships[playerIdx].y2[shipIdx2] >= ships[playerIdx].y2[shipIdx1] - 1
+                    &&  ships[playerIdx].y2[shipIdx2] <= ships[playerIdx].y2[shipIdx1] + 1);
         if (cheated) {
             declareWinner(1-playerIdx);
         }
@@ -421,36 +409,76 @@ contract BattleShips {
     //    winner = _winner;
     //    lastX = _lastX;
     //    lastY = _lastY;
-    //    for (uint8  i = 0; i<10; i++) {
-    //        for (uint8 j = 0; j<10;j++) {
-    //            boards[0].board[i][j].commitment = boardCommitments[0][i][j];
-    //            boards[0].board[i][j].randomness = fieldRandomness[0][i][j];
-    //            boards[0].board[i][j].ship = shiptiles[0][i][j];
-    //            boards[0].board[i][j].revealed = revealedtiles[0][i][j];
-    //            
-    //            boards[1].board[i][j].commitment = boardCommitments[1][i][j];
-    //            boards[1].board[i][j].randomness = fieldRandomness[1][i][j];
-    //            boards[1].board[i][j].ship = shiptiles[1][i][j];
-    //            boards[1].board[i][j].revealed = revealedtiles[1][i][j];
-    //        }
-    //        boards[0].ships[i].commitment = shipCommitments[0][i];
-    //        boards[0].ships[i].randomness = shipRandomness[0][i];
-    //        boards[0].ships[i].x1 = shipX[0][0][i];
-    //        boards[0].ships[i].y1 = shipY[0][0][i];
-    //        boards[0].ships[i].x2 = shipX[0][1][i];
-    //        boards[0].ships[i].y2 = shipY[0][1][i];
-    //        boards[0].ships[i].sunk = sunk[0][i];
+    //    boards[0].commitments = boardCommitments[0];
+    //    boards[0].randomness = fieldRandomness[0];
+    //    boards[0].shipTile = shiptiles[0];
+    //    boards[0].revealed = revealedtiles[0];
+    //    boards[1].commitments = boardCommitments[1];
+    //    boards[1].randomness = fieldRandomness[1];
+    //    boards[1].shipTile = shiptiles[1];
+    //    boards[1].revealed = revealedtiles[1];
+    //    ships[0].commitments = shipCommitments[0];
+    //    ships[0].randomness = shipRandomness[0];
+    //    ships[0].x1 = shipX[0][0];
+    //    ships[0].y1 = shipY[0][0];
+    //    ships[0].x2 = shipX[0][1];
+    //    ships[0].y2 = shipY[0][1];
+    //    ships[0].sunk = sunk[0];
     //        
-    //        boards[1].ships[i].commitment = shipCommitments[1][i];
-    //        boards[1].ships[i].randomness = shipRandomness[1][i];
-    //        boards[1].ships[i].x1 = shipX[1][0][i];
-    //        boards[1].ships[i].y1 = shipY[1][0][i];
-    //        boards[1].ships[i].x2 = shipX[1][1][i];
-    //        boards[1].ships[i].y2 = shipY[1][1][i];
-    //        boards[1].ships[i].sunk = sunk[1][i];
-    //    }
-    //    
+    //    ships[1].commitments = shipCommitments[1];
+    //    ships[1].randomness = shipRandomness[1];
+    //    ships[1].x1 = shipX[1][0];
+    //    ships[1].y1 = shipY[1][0];
+    //    ships[1].x2 = shipX[1][1];
+    //    ships[1].y2 = shipY[1][1];
+    //    ships[1].sunk = sunk[1];
+    //    lastUpdateHeight = block.number;
     //}
-    
+    //
+    //function getStateHash() public view returns (bytes32) {
+    //    return keccak256(abi.encodePacked(
+    //        turn,
+    //        gameState,
+    //        winner,
+    //        lastX,
+    //        lastY,
+    //        getBoardsEncoded(),
+    //        getShipsEncoded()
+    //        ));
+    //}
+    //
+    //function getBoardsEncoded() internal view returns (bytes) {
+    //    return abi.encodePacked(
+    //        boards[0].commitments,
+    //        boards[0].randomness,
+    //        boards[0].shipTile,
+    //        boards[0].revealed,
+    //        boards[0].committed,
+    //        boards[1].commitments,
+    //        boards[1].randomness,
+    //        boards[1].shipTile,
+    //        boards[1].revealed,
+    //        boards[1].committed
+    //        );
+    //}
+    //
+    //function getShipsEncoded() internal view returns (bytes) {
+    //    return abi.encodePacked(
+    //        ships[0].commitments,
+    //        ships[0].randomness,
+    //        ships[0].x1,
+    //        ships[0].y1,
+    //        ships[0].x2,
+    //        ships[0].y2,
+    //        ships[0].sunk,
+    //        ships[1].commitments,
+    //        ships[1].randomness,
+    //        ships[1].x1,
+    //        ships[1].y1,
+    //        ships[1].x2,
+    //        ships[1].y2,
+    //        ships[1].sunk
+    //        );
+    //}
     
 }
