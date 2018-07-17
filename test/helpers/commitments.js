@@ -21,7 +21,7 @@ squareCommit = async (isShip) => {
 shipHash = function (x1, y1, x2, y2, r) {
     return abi.soliditySHA3(
             ['uint128', 'uint8', 'uint8', 'uint8', 'uint8'],
-            [r, x1, x2, y1, y2])
+            [r, x1, y1, x2, y2])
 }
 
 shipCommit = async (x1, y1, x2, y2) => {
