@@ -108,6 +108,7 @@ contract BattleShips {
         lastX = x;
         turn = 1 - turn;
         gameState = GameState.Reveal;
+        lastUpdateHeight = block.number;
         emit Attack(msg.sender, x, y); 
     }
     
@@ -123,6 +124,7 @@ contract BattleShips {
                 turn = 1 - turn;
             }
             gameState = GameState.Attack;
+            lastUpdateHeight = block.number;
             emit Reveal(msg.sender, ship);
         } else {
             declareWinner(1 - turn);
@@ -174,6 +176,7 @@ contract BattleShips {
              
             turn = 1 - turn;
             gameState = GameState.Attack;
+            lastUpdateHeight = block.number;
         } else {
             declareWinner(1 - turn);
         }
@@ -188,6 +191,7 @@ contract BattleShips {
             // set winner, but do not finalize yet, other player can still submit fraud proof
             winner = players[idx];
             gameState = GameState.WinClaimed;
+            lastUpdateHeight = block.number;
         }
     }
 
@@ -204,6 +208,7 @@ contract BattleShips {
         boards[idx].committed = true;
         if (boards[0].committed && boards[1].committed) {
             gameState = GameState.Attack;
+            lastUpdateHeight = block.number;
         }
 
         emit BoardCommit(msg.sender);
@@ -392,6 +397,7 @@ contract BattleShips {
     function finishGame() public onlyPlayers() onlyState(GameState.WinClaimed) {
         if (block.number > lastUpdateHeight + 20) {
             gameState = GameState.Finished;
+            emit Winner(winner);
         }
     }
     
