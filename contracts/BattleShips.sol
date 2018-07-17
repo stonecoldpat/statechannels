@@ -82,13 +82,13 @@ contract BattleShips {
     event Winner(address indexed player);
     event RevealSink(address indexed player, uint8 shipidx);
 
-    mapping (uint8 => address) playerIndex;
+    mapping (address => uint8) playerIndex;
 
     constructor (address player0, address player1) public {
         players[0] = player0;
         players[1] = player1;
-        playerIndex[0] = player0;
-        playerIndex[1] = player1;
+        playerIndex[player0] = 0;
+        playerIndex[player1] = 1;
         gameState = GameState.Created;
     }
     
@@ -129,7 +129,7 @@ contract BattleShips {
         }
     }
     
-    function isSunk(uint8 player, uint8 shipidx, uint8 x1, uint8 x2, uint8 y1, uint8 y2) public returns (bool) {
+    function isSunk(uint8 player, uint8 shipidx, uint8 x1, uint8 x2, uint8 y1, uint8 y2) public view returns (bool) {
         require(ships[player].x1[shipidx] == x1);
         require(ships[player].y1[shipidx] == y1);
         require(ships[player].x2[shipidx] == x2);
@@ -180,15 +180,12 @@ contract BattleShips {
     }
     
     function claimWin( ) onlyPlayers() public {
-         uint8 idx = 0;
-         if(msg.sender == players[1]) {
-            idx = 1;
-         }
-         for (uint8 i = 0; i<10; i++) {
-             require(ships[1-idx].sunk[i]);
-         }
-         // TODO: check board of winner
-         declareWinner(idx);
+        uint8 idx = playerIndex[msg.sender];
+        for (uint8 i = 0; i<10; i++) {
+            require(ships[1-idx].sunk[i]);
+        }
+        // TODO: check board of winner
+        declareWinner(idx);
     }
 
 
@@ -198,10 +195,7 @@ contract BattleShips {
    
     /* currently allows players to change the commitments to their board until the other player has also committed */
     function commitBoard(bytes32[10][10] boardCommitments, bytes32[10] shipCommitments) onlyPlayers onlyState(GameState.Created) public {
-        uint8 idx = 0;
-        if(msg.sender == players[1]) {
-            idx = 1;
-        }
+        uint8 idx = playerIndex[msg.sender];
         boards[idx].commitments = boardCommitments;
         ships[idx].commitments = shipCommitments;
         boards[idx].committed = true;
@@ -369,10 +363,7 @@ contract BattleShips {
         require(gameState != GameState.Finished);
         
         // idx of other player
-        uint8 playerIdx = 1;
-        if(msg.sender == players[1]) {
-            playerIdx = 0;
-        }
+        uint8 playerIdx = 1 - playerIndex[msg.sender];
         require(gameState == GameState.WinClaimed || (ships[playerIdx].sunk[shipIdx1] && ships[playerIdx].sunk[shipIdx2]));
         bool cheated = (ships[playerIdx].x1[shipIdx2] >= ships[playerIdx].x1[shipIdx1] - 1
                     &&  ships[playerIdx].x1[shipIdx2] <= ships[playerIdx].x1[shipIdx1] + 1
