@@ -15,6 +15,7 @@ contract BattleShips {
     address public winner;
     Board[2] public boards;
     
+    // TODO: set this after every action
     uint256 public lastUpdateHeight;
     
     /*
@@ -119,8 +120,9 @@ contract BattleShips {
     */ 
     function reveal(uint128 randomness, bool ship) onlyPlayerTurn() onlyState(GameState.Reveal) public {
         if (keccak256(abi.encodePacked(randomness, ship)) == boards[turn].board[lastX][lastY].commitment) {
-             boards[turn].board[lastX][lastY].ship = ship;
-             boards[turn].board[lastX][lastY].randomness = randomness;
+            boards[turn].board[lastX][lastY].ship = ship;
+            boards[turn].board[lastX][lastY].randomness = randomness;
+            boards[turn].board[lastX][lastY].revealed = true;
              if (ship) {
                  turn = turn - 1;
              }
@@ -151,21 +153,30 @@ contract BattleShips {
                  && lastX >= shipx1 && lastX <= shipx2
                  && lastY >= shipy1 && lastY <= shipy2
                  && (shipx1 == shipx2 || shipy1 == shipy2)) {
-             boards[turn].board[lastX][lastY].ship = true;
-             boards[turn].board[lastX][lastY].randomness = fieldRandomness;
+            boards[turn].board[lastX][lastY].ship = true;
+            boards[turn].board[lastX][lastY].randomness = fieldRandomness;
+            boards[turn].board[lastX][lastY].revealed = true;
              
-             boards[turn].ships[shipIdx].randomness = shipRandomness;
-             boards[turn].ships[shipIdx].x1 = shipx1;
-             boards[turn].ships[shipIdx].y1 = shipy1;
-             boards[turn].ships[shipIdx].x2 = shipx2;
-             boards[turn].ships[shipIdx].y2 = shipy2;
-             boards[turn].ships[shipIdx].sunk = true;
-            
-            emit RevealSink(msg.sender, shipIdx); 
-             //TODO: check that all tiles of the ship have been hit
+            boards[turn].ships[shipIdx].randomness = shipRandomness;
+            boards[turn].ships[shipIdx].x1 = shipx1;
+            boards[turn].ships[shipIdx].y1 = shipy1;
+            boards[turn].ships[shipIdx].x2 = shipx2;
+            boards[turn].ships[shipIdx].y2 = shipy2;
+            boards[turn].ships[shipIdx].sunk = true;
              
-             turn = turn - 1;
-             gameState = GameState.Attack;
+            // check that all tiles of the ship have been hit and contain a ship
+            for (uint8 x = shipx1; x <= shipx2; x++){
+                for (uint8 y = shipy1; y <= shipy2; y++){
+                    if (!boards[turn].board[x][y].ship) {
+                        // cheating, either tile hasn't been revealed or indicated water
+                        declareWinner(1-turn);
+                        return;
+                    }
+                }
+            }   
+             
+            turn = turn - 1;
+            gameState = GameState.Attack;
         } else {
             declareWinner(turn -1);
         }
@@ -184,7 +195,7 @@ contract BattleShips {
     }
 
 
-    function isCommitted(uint8 _player) public returns (bool) {
+    function isCommitted(uint8 _player) public view returns (bool) {
         return boards[_player].committed;
     }
    
@@ -363,7 +374,7 @@ contract BattleShips {
     Fraud proof for adjacent or overlapping ships
     Can be called during the game or once one player has claimed to win the game
     */
-    function adjacentOrOverlapping(uint8 shipIdx1, uint8 shipIdx2) onlyPlayers() {
+    function adjacentOrOverlapping(uint8 shipIdx1, uint8 shipIdx2) onlyPlayers()public {
         require(gameState != GameState.Finished);
         
         // idx of other player
@@ -415,4 +426,5 @@ contract BattleShips {
             gameState = GameState.Finished;
         }
     }
+
 }
