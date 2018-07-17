@@ -11,16 +11,6 @@ contract('BattleShips', function (accounts) {
 
     const player1 = accounts[1]
     const player2 = accounts[2]
-    //const p1ship4x1 = [0,0, 0,3]
-    //const p1ship3x1 = [2,0, 2,2]
-    //const p1ship3x2 = [4,0, 4,2]
-    //const p1ship2x1 = [6,0, 6,1]
-    //const p1ship2x2 = [8,0, 8,1]
-    //const p1ship2x3 = [0,8, 0,9]
-    //const p1ship1x1 = [2,9, 2,9]
-    //const p1ship1x2 = [4,9, 4,9]
-    //const p1ship1x3 = [6,9, 6,9]
-    //const p1ship1x4 = [8,9, 8,9]
 
     const p1ships =[[0,0, 3,0],
                     [0,2, 2,2],
@@ -84,17 +74,6 @@ contract('BattleShips', function (accounts) {
         }
 
         var cs = p1boardBits
-        //shipSquareBits = 
-        //   [cs[0][0], cs[3][0],
-        //    cs[0][2], cs[2][2],
-        //    cs[0][4], cs[2][4],
-        //    cs[0][6], cs[1][6],
-        //    cs[0][8], cs[1][8],
-        //    cs[8][0], cs[9][0],
-        //    cs[9][2], cs[9][2],
-        //    cs[9][4], cs[9][4],
-        //    cs[9][6], cs[9][6],
-        //    cs[9][8], cs[9][8]]
 
         shipSquareBits = 
            [cs[9][8], cs[9][8],
@@ -107,6 +86,18 @@ contract('BattleShips', function (accounts) {
             cs[0][4], cs[2][4],
             cs[0][2], cs[2][2],
             cs[0][0], cs[3][0]]
+
+        shipSquareBits = 
+           [cs[9][8], cs[9][6],
+            cs[9][4], cs[9][2],
+            cs[8][0], cs[9][0],
+            cs[0][8], cs[1][8],
+            cs[0][6], cs[1][6],
+            cs[0][4], cs[1][4],
+            cs[2][4], cs[0][2],
+            cs[1][2], cs[2][2],
+            cs[0][0], cs[1][0],
+            cs[2][0], cs[3][0]]
 
         //p1shipCommits = p1shipCommits.reverse()
         //p1shipBits = p1shipBits.reverse()
@@ -222,25 +213,7 @@ contract('BattleShips', function (accounts) {
         tx = await battleship.checkBoard(1, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player2})
 
         console.log(tx.logs)
-        //var coords = tx.logs.filter(log => log.event == 'DebugShipCoord')
-        //var commits = tx.logs.filter(log => log.event == 'DebugCommit')
 
-        //for (var i = 0; i < commits.length; i++) {
-        //    console.log('COMMIT')
-        //    console.log(commits[i].args.shipCommit, commits[i].args.myCommit)
-        //    console.log(commits[i].args.shipRandom, p1shipBits[commits[i].args.shipidx])
-
-        //    console.log('COORDS')
-        //    console.log('x1', await web3.utils.toHex(coords[i].args.x1))
-        //    console.log('y1', await web3.utils.toHex(coords[i].args.y1))
-        //    console.log('x2', await web3.utils.toHex(coords[i].args.x2))
-        //    console.log('y2', await web3.utils.toHex(coords[i].args.y2))
-
-        //    //console.log(tx.logs[i]);
-        //    //console.log(await web3.utils.toHex(tx.logs[i].args.shipRandom), p1shipBits[ tx.logs[i].args.shipidx ])
-        //}
-
-        //console.log(p1shipCommits)
     })
 
 })

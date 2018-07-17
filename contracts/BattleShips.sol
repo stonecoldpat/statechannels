@@ -231,6 +231,8 @@ contract BattleShips {
     event shipsize2();
     event shipsize3();
     event shipsize4();
+    event debugcoords(uint8 x1, uint8 y1, uint8 x2, uint8 y2);
+    event debugcommit(bytes32 hash, bytes32 commit);
  
     /*
     checks whether a player has actually placed all ships on the committed board
@@ -253,8 +255,6 @@ contract BattleShips {
                     declareWinner(1-idx);
                     return;
                 }
-                //emit DebugCommit(boards[idx].ships[i].commitment,keccak256(abi.encodePacked(shipRandomness[i], shipX1[i], shipY1[i], shipX2[i], shipY2[i])), shipRandomness[i], i);
-                //emit DebugShipCoord(shipX1[i], shipY1[i], shipX2[i], shipY2[i]);
                 // check ship commitment
                 if (keccak256(abi.encodePacked(shipRandomness[i], shipX1[i], shipY1[i], shipX2[i], shipY2[i])) != boards[idx].ships[i].commitment) {
                     //cheating
@@ -264,98 +264,87 @@ contract BattleShips {
                 // check tile commitments for each ship size and check that at least one tile per ship was not revealed during the game
                 if (i < 4) { 
                     //size 1
-                    emit shipsize1();
                     if (boards[idx].board[shipX1[i]][shipY1[i]].revealed || !(shipX1[i] == shipX2[i] && shipY1[i] == shipY2[i] && keccak256(abi.encodePacked(shipFieldRandomness[i], true)) == boards[idx].board[shipX1[i]][shipY1[i]].commitment)) {
                          //cheating
                          declareWinner(1-idx);
-                        emit shipsize1();
                          return;
                      }
                 } else if (i < 7) {
                     // ship of size 2
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
                          for (y = shipY1[i]; y <= shipY2[i]; y++){
-                             size++;
                              if (boards[idx].board[x][y].revealed) {
                                  // count number of tiles revealed during the game
                                  revealed++;
                                  if (!boards[idx].board[x][y].ship) {
                                     // one of the tiles indicated water
                                     declareWinner(1-idx);
-                                    emit shipsize2();
                                     return;
                                  }
                              }
                              if (keccak256(abi.encodePacked(shipFieldRandomness[4+(i-4)*2+size], true)) != boards[idx].board[x][y].commitment){
                                  //cheating
                                  declareWinner(1-idx);
-                                emit shipsize2();
                                  return;
                              }
+                             size++;
                          }   
                      }
                      if (size != 2) {
                         //cheating
                         declareWinner(1-idx);
-                        emit shipsize2();
                         return;
                      }
                 } else if (i < 9) {
                     // ship of size 3
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
                          for (y = shipY1[i]; y <= shipY2[i]; y++){
-                             size++;
                              if (boards[idx].board[x][y].revealed) {
                                  // count number of tiles revealed during the game
                                  revealed++;
                                  if (!boards[idx].board[x][y].ship) {
                                     // one of the tiles indicated water
                                     declareWinner(1-idx);
-                                    emit shipsize3();
                                     return;
                                  }
                              }
                              if (keccak256(abi.encodePacked(shipFieldRandomness[10+(i-7)*3+size], true)) != boards[idx].board[x][y].commitment){
                                 //cheating
                                 declareWinner(1-idx);
-                                emit shipsize3();
                                 return;
                              }
+                             size++;
                          }   
                      }
                      if (size != 3) {
                         //cheating
                         declareWinner(1-idx);
-                        emit shipsize3();
                         return;
                      }
                 } else {
                      // ship of size 4
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
                          for (y = shipY1[i]; y <= shipY2[i]; y++){
-                             size++;
                              if (boards[idx].board[x][y].revealed) {
                                  // count number of tiles revealed during the game
                                  revealed++;
                                  if (!boards[idx].board[x][y].ship) {
                                     // one of the tiles indicated water
                                     declareWinner(1-idx);
-                                    emit shipsize4();
                                     return;
                                  }
                              }
                              if (keccak256(abi.encodePacked(shipFieldRandomness[16+size], true)) != boards[idx].board[x][y].commitment){
                                 //cheating
                                 declareWinner(1-idx);
-                                emit shipsize4();
                                 return;
                              }
+                             size++;
                          }   
                      }
                      if (size != 4) {
                         //cheating
                         declareWinner(1-idx);
-                        emit shipsize4();
                         return;
                      }
                 }
