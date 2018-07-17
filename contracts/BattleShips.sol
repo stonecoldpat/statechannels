@@ -124,12 +124,12 @@ contract BattleShips {
             boards[turn].board[lastX][lastY].randomness = randomness;
             boards[turn].board[lastX][lastY].revealed = true;
              if (ship) {
-                 turn = turn - 1;
+                 turn = 1 - turn;
              }
              gameState = GameState.Attack;
             emit Reveal(msg.sender, ship);
         } else {
-            declareWinner(turn -1);
+            declareWinner(1 - turn);
         }
     }
     
@@ -224,8 +224,6 @@ contract BattleShips {
         emit BoardCommit(msg.sender);
     }
    
-
-    event notRevealed(uint8 i, uint8 revealed, uint8 size);
 
     /*
     checks whether a player has actually placed all ships on the committed board
@@ -345,7 +343,6 @@ contract BattleShips {
                 if (revealed == size) {
                     // the ship should have been revealed during the game but wasn't
                     declareWinner(1-idx);
-                    emit notRevealed(i, revealed, size);
                     return;
                 }
                 // add ship coordinates to contract
@@ -414,46 +411,46 @@ contract BattleShips {
         }
     }
     
-    function setState(uint8 _turn, GameState _state, address _winner, bytes32[2][10][10] boardCommitments, 
-            uint128[2][10][10] fieldRandomness, bool[2][10][10] shiptiles, bool[2][10][10] revealedtiles,
-            bytes32[2][10] shipCommitments, uint128[2][10] shipRandomness ,uint8[2][2][10] shipX, uint8[2][2][10] shipY, 
-            bool[2][10] sunk, uint8 _lastX, uint8 _lastY) public  {
-        // TODO: hash and check that this corresponds to hash in state channel contract
-        turn = _turn;
-        gameState = _state;
-        winner = _winner;
-        lastX = _lastX;
-        lastY = _lastY;
-        for (uint8  i = 0; i<10; i++) {
-            for (uint8 j = 0; j<10;j++) {
-                boards[0].board[i][j].commitment = boardCommitments[0][i][j];
-                boards[0].board[i][j].randomness = fieldRandomness[0][i][j];
-                boards[0].board[i][j].ship = shiptiles[0][i][j];
-                boards[0].board[i][j].revealed = revealedtiles[0][i][j];
-                
-                boards[1].board[i][j].commitment = boardCommitments[1][i][j];
-                boards[1].board[i][j].randomness = fieldRandomness[1][i][j];
-                boards[1].board[i][j].ship = shiptiles[1][i][j];
-                boards[1].board[i][j].revealed = revealedtiles[1][i][j];
-            }
-            boards[0].ships[i].commitment = shipCommitments[0][i];
-            boards[0].ships[i].randomness = shipRandomness[0][i];
-            boards[0].ships[i].x1 = shipX[0][0][i];
-            boards[0].ships[i].y1 = shipY[0][0][i];
-            boards[0].ships[i].x2 = shipX[0][1][i];
-            boards[0].ships[i].y2 = shipY[0][1][i];
-            boards[0].ships[i].sunk = sunk[0][i];
-            
-            boards[1].ships[i].commitment = shipCommitments[1][i];
-            boards[1].ships[i].randomness = shipRandomness[1][i];
-            boards[1].ships[i].x1 = shipX[1][0][i];
-            boards[1].ships[i].y1 = shipY[1][0][i];
-            boards[1].ships[i].x2 = shipX[1][1][i];
-            boards[1].ships[i].y2 = shipY[1][1][i];
-            boards[1].ships[i].sunk = sunk[1][i];
-        }
-        
-    }
+    //function setState(uint8 _turn, GameState _state, address _winner, bytes32[2][10][10] boardCommitments, 
+    //        uint128[2][10][10] fieldRandomness, bool[2][10][10] shiptiles, bool[2][10][10] revealedtiles,
+    //        bytes32[2][10] shipCommitments, uint128[2][10] shipRandomness ,uint8[2][2][10] shipX, uint8[2][2][10] shipY, 
+    //        bool[2][10] sunk, uint8 _lastX, uint8 _lastY) public  {
+    //    // TODO: hash and check that this corresponds to hash in state channel contract
+    //    turn = _turn;
+    //    gameState = _state;
+    //    winner = _winner;
+    //    lastX = _lastX;
+    //    lastY = _lastY;
+    //    for (uint8  i = 0; i<10; i++) {
+    //        for (uint8 j = 0; j<10;j++) {
+    //            boards[0].board[i][j].commitment = boardCommitments[0][i][j];
+    //            boards[0].board[i][j].randomness = fieldRandomness[0][i][j];
+    //            boards[0].board[i][j].ship = shiptiles[0][i][j];
+    //            boards[0].board[i][j].revealed = revealedtiles[0][i][j];
+    //            
+    //            boards[1].board[i][j].commitment = boardCommitments[1][i][j];
+    //            boards[1].board[i][j].randomness = fieldRandomness[1][i][j];
+    //            boards[1].board[i][j].ship = shiptiles[1][i][j];
+    //            boards[1].board[i][j].revealed = revealedtiles[1][i][j];
+    //        }
+    //        boards[0].ships[i].commitment = shipCommitments[0][i];
+    //        boards[0].ships[i].randomness = shipRandomness[0][i];
+    //        boards[0].ships[i].x1 = shipX[0][0][i];
+    //        boards[0].ships[i].y1 = shipY[0][0][i];
+    //        boards[0].ships[i].x2 = shipX[0][1][i];
+    //        boards[0].ships[i].y2 = shipY[0][1][i];
+    //        boards[0].ships[i].sunk = sunk[0][i];
+    //        
+    //        boards[1].ships[i].commitment = shipCommitments[1][i];
+    //        boards[1].ships[i].randomness = shipRandomness[1][i];
+    //        boards[1].ships[i].x1 = shipX[1][0][i];
+    //        boards[1].ships[i].y1 = shipY[1][0][i];
+    //        boards[1].ships[i].x2 = shipX[1][1][i];
+    //        boards[1].ships[i].y2 = shipY[1][1][i];
+    //        boards[1].ships[i].sunk = sunk[1][i];
+    //    }
+    //    
+    //}
     
     
 }

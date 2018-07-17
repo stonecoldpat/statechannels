@@ -201,7 +201,7 @@ contract('BattleShips', function (accounts) {
         assert(log.args.y.eq(0))
     })
 
-    it('player 1 reveals a miss', async () => {
+    it('player 1 reveals a hit', async () => {
         tx = await battleship.reveal(p1boardBits[3][0], p1board[3][0] == 1, {from: player1})
 
         log = tx.logs.find(log => log.event == 'Reveal')
@@ -209,15 +209,31 @@ contract('BattleShips', function (accounts) {
         assert.equal(log.args.hit, true)
     })
 
+//    it('player 1 lies about a hit', async () => {
+//        // check turn
+//        turn = await battleship.turn.call()
+//        assert( turn.eq(1) )
+//
+//        // player 2 hits player 1's ship
+//        tx = await battleship.attack(8, 0, {from: player2})
+//
+//        log = tx.logs.find(log => log.event == 'Attack')
+//        assert.equal(log.args.player, player2)
+//        assert(log.args.x.eq(8))
+//        assert(log.args.y.eq(0))
+//        
+//        // player 1 reveals that it was a 'miss'
+//        tx = await battleship.reveal(p1boardBits[3][0], false, {from: player1})
+//   
+//        log = tx.logs.find(log => log.event == 'Reveal')
+//        assert.equal(log.args.player, player1)
+//        assert.equal(log.args.hit, false)
+//    })  
+
     it('player 2 says fuck it and reveals his board', async () => {
         tx = await battleship.checkBoard(1, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player2})
-
-        console.log(tx.logs)
-        log = tx.logs.find(log => log.event == "notRevealed")
-        console.log('number', log.args.i.toNumber())
-        console.log('revealed', log.args.revealed.toNumber())
-        console.log('size', log.args.size.toNumber())
-
+        log = tx.logs.find(log => log.event == 'Winner')
+        assert.equal(log, undefined)
     })
 
 })
