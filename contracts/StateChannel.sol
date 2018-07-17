@@ -37,7 +37,6 @@ contract StateChannel {
 
     // Configuration for state channel
     uint256 public disputePeriod;  // Minimum time for dispute process (time all parties have to submit a command)
-    address public owner; // Application we are interested in.
 
     // Current status for channel
     Status public status;
@@ -59,7 +58,6 @@ contract StateChannel {
     event EventResolve (uint256 indexed bestround);
     event EventEvidence (uint256 indexed bestround, bytes32 hstate);
 
-    modifier onlyowner { if(owner == msg.sender) _; else revert(); }
     modifier onlyplayers { if (pmap[msg.sender]) _; else revert(); }
 
 
@@ -72,7 +70,6 @@ contract StateChannel {
             pmap[_plist[i]] = true;
         }
 
-        owner = msg.sender;
         disputePeriod = _disputePeriod;
     }
 
