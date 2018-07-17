@@ -213,6 +213,10 @@ contract('BattleShips', function (accounts) {
         tx = await battleship.checkBoard(1, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player2})
 
         console.log(tx.logs)
+        log = tx.logs.find(log => log.event == "notRevealed")
+        console.log('number', log.args.i.toNumber())
+        console.log('revealed', log.args.revealed.toNumber())
+        console.log('size', log.args.size.toNumber())
 
     })
 

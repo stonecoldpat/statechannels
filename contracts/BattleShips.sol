@@ -225,15 +225,8 @@ contract BattleShips {
     }
    
 
-    //event DebugCommit(bytes32 shipCommit, bytes32 myCommit, uint128 shipRandom, uint8 shipidx);
-    //event DebugShipCoord(uint8 x1, uint8 y1, uint8 x2, uint8 y2);
-    event shipsize1();
-    event shipsize2();
-    event shipsize3();
-    event shipsize4();
-    event debugcoords(uint8 x1, uint8 y1, uint8 x2, uint8 y2);
-    event debugcommit(bytes32 hash, bytes32 commit);
- 
+    event notRevealed(uint8 i, uint8 revealed, uint8 size);
+
     /*
     checks whether a player has actually placed all ships on the committed board
     the player reveals the ship locations and the blinding factors for all commitments for tiles that contain a ship
@@ -269,6 +262,7 @@ contract BattleShips {
                          declareWinner(1-idx);
                          return;
                      }
+                    size++;
                 } else if (i < 7) {
                     // ship of size 2
                     for (x = shipX1[i]; x <= shipX2[i]; x++){
@@ -348,11 +342,12 @@ contract BattleShips {
                         return;
                      }
                 }
-                //if (revealed == size) {
-                //    // the ship should have been revealed during the game but wasn't
-                //    declareWinner(1-idx);
-                //    return;
-                //}
+                if (revealed == size) {
+                    // the ship should have been revealed during the game but wasn't
+                    declareWinner(1-idx);
+                    emit notRevealed(i, revealed, size);
+                    return;
+                }
                 // add ship coordinates to contract
                 boards[idx].ships[i].x1 = shipX1[i];
                 boards[idx].ships[i].y1 = shipY1[i];
