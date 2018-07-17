@@ -82,13 +82,13 @@ contract BattleShips {
     event Winner(address indexed player);
     event RevealSink(address indexed player, uint8 shipidx);
 
-    mapping (uint8 => address) playerIndex;
+    mapping (address => uint8) playerIndex;
 
     constructor (address player0, address player1) public {
         players[0] = player0;
         players[1] = player1;
-        playerIndex[0] = player0;
-        playerIndex[1] = player1;
+        playerIndex[player0] = 0;
+        playerIndex[player1] = 1;
         gameState = GameState.Created;
     }
     
@@ -129,7 +129,7 @@ contract BattleShips {
         }
     }
     
-    function isSunk(uint8 player, uint8 shipidx, uint8 x1, uint8 x2, uint8 y1, uint8 y2) public returns (bool) {
+    function isSunk(uint8 player, uint8 shipidx, uint8 x1, uint8 x2, uint8 y1, uint8 y2) public view returns (bool) {
         require(ships[player].x1[shipidx] == x1);
         require(ships[player].y1[shipidx] == y1);
         require(ships[player].x2[shipidx] == x2);
@@ -180,15 +180,12 @@ contract BattleShips {
     }
     
     function claimWin( ) onlyPlayers() public {
-         uint8 idx = 0;
-         if(msg.sender == players[1]) {
-            idx = 1;
-         }
-         for (uint8 i = 0; i<10; i++) {
-             require(ships[1-idx].sunk[i]);
-         }
-         // TODO: check board of winner
-         declareWinner(idx);
+        uint8 idx = playerIndex[msg.sender];
+        for (uint8 i = 0; i<10; i++) {
+            require(ships[1-idx].sunk[i]);
+        }
+        // TODO: check board of winner
+        declareWinner(idx);
     }
 
 
@@ -198,10 +195,7 @@ contract BattleShips {
    
     /* currently allows players to change the commitments to their board until the other player has also committed */
     function commitBoard(bytes32[10][10] boardCommitments, bytes32[10] shipCommitments) onlyPlayers onlyState(GameState.Created) public {
-        uint8 idx = 0;
-        if(msg.sender == players[1]) {
-            idx = 1;
-        }
+        uint8 idx = playerIndex[msg.sender];
         boards[idx].commitments = boardCommitments;
         ships[idx].commitments = shipCommitments;
         boards[idx].committed = true;
@@ -350,10 +344,7 @@ contract BattleShips {
         require(gameState != GameState.Finished);
         
         // idx of other player
-        uint8 playerIdx = 1;
-        if(msg.sender == players[1]) {
-            playerIdx = 0;
-        }
+        uint8 playerIdx = 1 - playerIndex[msg.sender];
         require(gameState == GameState.WinClaimed || (ships[playerIdx].sunk[shipIdx1] && ships[playerIdx].sunk[shipIdx2]));
         bool cheated = (ships[playerIdx].x1[shipIdx2] >= ships[playerIdx].x1[shipIdx1] - 1
                     &&  ships[playerIdx].x1[shipIdx2] <= ships[playerIdx].x1[shipIdx1] + 1
@@ -399,86 +390,125 @@ contract BattleShips {
         }
     }
     
-    //function setState(uint8 _turn, GameState _state, address _winner, bytes32[2][10][10] boardCommitments, 
-    //        uint128[2][10][10] fieldRandomness, bool[2][10][10] shiptiles, bool[2][10][10] revealedtiles,
-    //        bytes32[2][10] shipCommitments, uint128[2][10] shipRandomness ,uint8[2][2][10] shipX, uint8[2][2][10] shipY, 
-    //        bool[2][10] sunk, uint8 _lastX, uint8 _lastY) public  {
-    //    // TODO: hash and check that this corresponds to hash in state channel contract
-    //    turn = _turn;
-    //    gameState = _state;
-    //    winner = _winner;
-    //    lastX = _lastX;
-    //    lastY = _lastY;
-    //    boards[0].commitments = boardCommitments[0];
-    //    boards[0].randomness = fieldRandomness[0];
-    //    boards[0].shipTile = shiptiles[0];
-    //    boards[0].revealed = revealedtiles[0];
-    //    boards[1].commitments = boardCommitments[1];
-    //    boards[1].randomness = fieldRandomness[1];
-    //    boards[1].shipTile = shiptiles[1];
-    //    boards[1].revealed = revealedtiles[1];
-    //    ships[0].commitments = shipCommitments[0];
-    //    ships[0].randomness = shipRandomness[0];
-    //    ships[0].x1 = shipX[0][0];
-    //    ships[0].y1 = shipY[0][0];
-    //    ships[0].x2 = shipX[0][1];
-    //    ships[0].y2 = shipY[0][1];
-    //    ships[0].sunk = sunk[0];
-    //        
-    //    ships[1].commitments = shipCommitments[1];
-    //    ships[1].randomness = shipRandomness[1];
-    //    ships[1].x1 = shipX[1][0];
-    //    ships[1].y1 = shipY[1][0];
-    //    ships[1].x2 = shipX[1][1];
-    //    ships[1].y2 = shipY[1][1];
-    //    ships[1].sunk = sunk[1];
-    //    lastUpdateHeight = block.number;
-    //}
-    //
-    //function getStateHash() public view returns (bytes32) {
-    //    return keccak256(abi.encodePacked(
-    //        turn,
-    //        gameState,
-    //        winner,
-    //        lastX,
-    //        lastY,
-    //        getBoardsEncoded(),
-    //        getShipsEncoded()
-    //        ));
-    //}
-    //
-    //function getBoardsEncoded() internal view returns (bytes) {
-    //    return abi.encodePacked(
-    //        boards[0].commitments,
-    //        boards[0].randomness,
-    //        boards[0].shipTile,
-    //        boards[0].revealed,
-    //        boards[0].committed,
-    //        boards[1].commitments,
-    //        boards[1].randomness,
-    //        boards[1].shipTile,
-    //        boards[1].revealed,
-    //        boards[1].committed
-    //        );
-    //}
-    //
-    //function getShipsEncoded() internal view returns (bytes) {
-    //    return abi.encodePacked(
-    //        ships[0].commitments,
-    //        ships[0].randomness,
-    //        ships[0].x1,
-    //        ships[0].y1,
-    //        ships[0].x2,
-    //        ships[0].y2,
-    //        ships[0].sunk,
-    //        ships[1].commitments,
-    //        ships[1].randomness,
-    //        ships[1].x1,
-    //        ships[1].y1,
-    //        ships[1].x2,
-    //        ships[1].y2,
-    //        ships[1].sunk
-    //        );
-    //}
+    function setState(uint8 _turn, GameState _state, address _winner, bytes32[2][10][10] boardCommitments, 
+            uint128[2][10][10] fieldRandomness, bool[2][10][10] shiptiles, bool[2][10][10] revealedtiles,
+            bytes32[2][10] shipCommitments, uint128[2][10] shipRandomness ,uint8[2][2][10] shipX, uint8[2][2][10] shipY, 
+            bool[2][10] sunk, uint8 _lastX, uint8 _lastY) public  {
+        // TODO: hash and check that this corresponds to hash in state channel contract
+        turn = _turn;
+        gameState = _state;
+        winner = _winner;
+        lastX = _lastX;
+        lastY = _lastY;
+        boards[0].commitments = boardCommitments[0];
+        boards[0].randomness = fieldRandomness[0];
+        boards[0].shipTile = shiptiles[0];
+        boards[0].revealed = revealedtiles[0];
+        boards[1].commitments = boardCommitments[1];
+        boards[1].randomness = fieldRandomness[1];
+        boards[1].shipTile = shiptiles[1];
+        boards[1].revealed = revealedtiles[1];
+        ships[0].commitments = shipCommitments[0];
+        ships[0].randomness = shipRandomness[0];
+        ships[0].x1 = shipX[0][0];
+        ships[0].y1 = shipY[0][0];
+        ships[0].x2 = shipX[0][1];
+        ships[0].y2 = shipY[0][1];
+        ships[0].sunk = sunk[0];
+            
+        ships[1].commitments = shipCommitments[1];
+        ships[1].randomness = shipRandomness[1];
+        ships[1].x1 = shipX[1][0];
+        ships[1].y1 = shipY[1][0];
+        ships[1].x2 = shipX[1][1];
+        ships[1].y2 = shipY[1][1];
+        ships[1].sunk = sunk[1];
+        lastUpdateHeight = block.number;
+    }
+    
+    function getState() public view returns (uint8 _turn, GameState _state, address _winner, bytes32[2][10][10] boardCommitments, 
+            uint128[2][10][10] fieldRandomness, bool[2][10][10] shiptiles, bool[2][10][10] revealedtiles,
+            bytes32[2][10] shipCommitments, uint128[2][10] shipRandomness ,uint8[2][2][10] shipX, uint8[2][2][10] shipY, 
+            bool[2][10] sunk, uint8 _lastX, uint8 _lastY) {
+                
+        _turn = turn;
+        _state = gameState;
+        _winner = winner;
+        _lastX = lastX;
+        _lastY = lastY;
+        for (uint8 i = 0; i < 10; i++) {
+            for (uint8 j = 0; j < 10; j++) {
+                boardCommitments[0][i][j] = boards[0].commitments[i][j];
+                fieldRandomness[0][i][j] = boards[0].randomness[i][j];
+                shiptiles[0][i][j] = boards[0].shipTile[i][j];
+                revealedtiles[0][i][j] = boards[0].revealed[i][j];
+                boardCommitments[1][i][j] = boards[1].commitments[i][j];
+                fieldRandomness[1][i][j] = boards[1].randomness[i][j];
+                shiptiles[1][i][j] = boards[1].shipTile[i][j];
+                revealedtiles[1][i][j] = boards[1].revealed[i][j];
+            }
+            shipCommitments[0][i] = ships[0].commitments[i];
+            shipRandomness[0][i] = ships[0].randomness[i];
+            shipX[0][0][i] = ships[0].x1[i];
+            shipY[0][0][i] = ships[0].y1[i];
+            shipX[0][1][i] = ships[0].x2[i];
+            shipY[0][1][i] = ships[0].y2[i];
+            sunk[0][i] = ships[0].sunk[i];
+            
+            shipCommitments[1][i] = ships[1].commitments[i];
+            shipRandomness[1][i] = ships[1].randomness[i];
+            shipX[1][0][i] = ships[1].x1[i];
+            shipY[1][0][i] = ships[1].y1[i];
+            shipX[1][1][i] = ships[1].x2[i];
+            shipY[1][1][i] = ships[1].y2[i];
+            sunk[1][i] = ships[1].sunk[i];
+        }
+    }
+    
+    function getStateHash() public view returns (bytes32) {
+        return keccak256(abi.encodePacked(
+            turn,
+            gameState,
+            winner,
+            lastX,
+            lastY,
+            getBoardsEncoded(),
+            getShipsEncoded()
+            ));
+    }
+    
+    function getBoardsEncoded() internal view returns (bytes) {
+        return abi.encodePacked(
+            boards[0].commitments,
+            boards[0].randomness,
+            boards[0].shipTile,
+            boards[0].revealed,
+            boards[0].committed,
+            boards[1].commitments,
+            boards[1].randomness,
+            boards[1].shipTile,
+            boards[1].revealed,
+            boards[1].committed
+            );
+    }
+    
+    function getShipsEncoded() internal view returns (bytes) {
+        return abi.encodePacked(
+            ships[0].commitments,
+            ships[0].randomness,
+            ships[0].x1,
+            ships[0].y1,
+            ships[0].x2,
+            ships[0].y2,
+            ships[0].sunk,
+            ships[1].commitments,
+            ships[1].randomness,
+            ships[1].x1,
+            ships[1].y1,
+            ships[1].x2,
+            ships[1].y2,
+            ships[1].sunk
+            );
+    }
     
 }
