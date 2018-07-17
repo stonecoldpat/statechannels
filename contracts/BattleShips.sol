@@ -1,6 +1,6 @@
 pragma solidity ^0.4.24;
 
-contract Battleship {
+contract BattleShips {
    
     /*
     After game is Created, both players commit to their boards
@@ -8,27 +8,21 @@ contract Battleship {
     */
     enum GameState { Created, Attack, Reveal, WinClaimed, Finished }
     
-    uint8 turn; //0 if players[0] turn, 1 if players[1] turn
-    GameState gameState;
+    uint8 public turn; //0 if players[0] turn, 1 if players[1] turn
+    GameState public gameState;
     
-    address[2] players;
-    address winner;
-    Board[2] boards;
+    address[2] public players;
+    address public winner;
+    Board[2] public boards;
     
-    uint256 lastUpdateHeight;
+    uint256 public lastUpdateHeight;
     
     /*
     coordinates of the last tile that has been attacked
     */
-    uint8 lastX;
-    uint8 lastY;
+    uint8 public lastX;
+    uint8 public lastY;
  
-    constructor (address player0, address player1) public {
-        players[0] = player0;
-        players[1] = player1;
-        gameState = GameState.Created;
-    }
-    
     /*
     commitment is a hash of (randomness,ship)
     randomness, ship are revealed during the game if Tile is hit
@@ -84,6 +78,15 @@ contract Battleship {
         require(gameState == state);
         _;
     }
+    
+    event BoardCommit(address indexed player);
+
+    constructor (address player0, address player1) public {
+        players[0] = player0;
+        players[1] = player1;
+        gameState = GameState.Created;
+    }
+    
     
     function declareWinner(uint8 idx) internal {
         winner = players[idx];
@@ -157,9 +160,14 @@ contract Battleship {
          // TODO: check board of winner
          declareWinner(idx);
     }
-    
+
+
+    function isCommitted(uint8 _player) public returns (bool) {
+        return boards[_player].committed;
+    }
+   
     /* currently allows players to change the commitments to their board until the other player has also committed */
-    function commitBoard(bytes32[10][10] boardCommitments, bytes32[10] shipCommitments) onlyPlayers() onlyState(GameState.Created) public {
+    function commitBoard(bytes32[10][10] boardCommitments, bytes32[10] shipCommitments) onlyPlayers onlyState(GameState.Created) public {
         uint8 idx = 0;
         if(msg.sender == players[1]) {
             idx = 1;
@@ -176,6 +184,8 @@ contract Battleship {
          if (boards[0].committed && boards[1].committed) {
             gameState = GameState.Attack;
          }
+
+        emit BoardCommit(msg.sender);
     }
     
     /*

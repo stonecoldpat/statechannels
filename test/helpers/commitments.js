@@ -3,7 +3,7 @@ const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
 const abi = require('ethereumjs-abi')
 const BigNumber = require('bignumber.js')
 
-randInt = async (web3) => {
+randInt = async () => {
     return web3.utils.randomHex(16);
 }
 
@@ -14,7 +14,7 @@ squareHash = function (r, isShip) {
 }
 
 squareCommit = async (isShip) => {
-    let r = await randInt(web3)
+    let r = await randInt()
     return [r, squareHash(r, isShip)]
 }
 
@@ -25,7 +25,7 @@ shipHash = function (x1, y1, x2, y2, r) {
 }
 
 shipCommit = async (x1, y1, x2, y2) => {
-    let r = await randInt(web3)
+    let r = await randInt()
     return [r, shipHash(x1, y1, x2, y2, r)]
 }
 
