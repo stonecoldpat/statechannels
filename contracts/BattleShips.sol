@@ -147,6 +147,7 @@ contract BattleShips {
     reveal last attacked tile if a ship has been sunk by a hit
     in that case, the ship also has to be revealed
     */ 
+
     function revealSink(uint128 fieldRandomness, uint128 shipRandomness, uint8 shipIdx, uint8 shipx1, uint8 shipy1, uint8 shipx2, uint8 shipy2) onlyPlayerTurn() onlyState(GameState.Reveal) public {
          if (keccak256(abi.encodePacked(fieldRandomness, true)) == boards[turn].board[lastX][lastY].commitment
                  && keccak256(abi.encodePacked(shipRandomness, shipx1, shipy1, shipx2, shipy2)) == boards[turn].ships[shipIdx].commitment
@@ -163,7 +164,9 @@ contract BattleShips {
             boards[turn].ships[shipIdx].x2 = shipx2;
             boards[turn].ships[shipIdx].y2 = shipy2;
             boards[turn].ships[shipIdx].sunk = true;
-             
+            
+            emit RevealSink(msg.sender, shipIdx);
+ 
             // check that all tiles of the ship have been hit and contain a ship
             for (uint8 x = shipx1; x <= shipx2; x++){
                 for (uint8 y = shipy1; y <= shipy2; y++){
