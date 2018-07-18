@@ -3,11 +3,12 @@ const Web3 = require('web3')
 const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
 const abi = require('ethereumjs-abi')
 const BigNumber = require('bignumber.js')
+const StateChannel = require('./StateChannel.sol')
 
 const Commit = require('./helpers/commitments.js')
 
 contract('BattleShips', function (accounts) {
-    let battleship, boardcommitments, tx, turn
+    let battleship, boardcommitments, tx, turn, statechannel
 
     const player1 = accounts[1]
     const player2 = accounts[2]
@@ -60,7 +61,8 @@ contract('BattleShips', function (accounts) {
     let shipSquareBits = [] 
 
     before( async () => {
-        battleship = await BattleShips.new(player1, player2)
+        statechannel = await StateChannel.new([player1, player2], 20)
+        battleship = await BattleShips.new(player1, player2, '0x0')
 
         // create board commitments
         for (var i = 0; i < p1board.length; i++) {
@@ -469,7 +471,8 @@ contract('BattleShips', function (accounts) {
     })
 
     it('player 2 says fuck it and reveals his board', async () => {
-        tx = await battleship.checkBoard(1, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player2})
+//        tx = await battleship.checkBoard(1, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player2})
+        tx = await battleship.claimWin(shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player2})
         log = tx.logs.find(log => log.event == 'Winner')
         assert.equal(log, undefined)
     })

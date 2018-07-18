@@ -84,7 +84,7 @@ contract BattleShips {
     only allow if the channel is off
     */
     modifier onlyChannelOff() {
-        require(stateChannel == 0x0 || stateChannel.status() == StateChannel.Status.OFF);
+        require(stateChannel.status() == StateChannel.Status.OFF);
         _;
     }
     
@@ -232,7 +232,7 @@ contract BattleShips {
     checks whether a player has actually placed all ships on the committed board
     the player reveals the ship locations and the blinding factors for all commitments for tiles that contain a ship
     */
-    function checkBoard(uint8 idx, uint128[20] shipFieldRandomness, uint128[10] shipRandomness, uint8[10] shipX1, uint8[10] shipY1, uint8[10] shipX2, uint8[10] shipY2) onlyChannelOff  public returns (bool) {
+    function checkBoard(uint8 idx, uint128[20] shipFieldRandomness, uint128[10] shipRandomness, uint8[10] shipX1, uint8[10] shipY1, uint8[10] shipX2, uint8[10] shipY2) onlyChannelOff  internal returns (bool) {
         uint8 size;
         uint8 revealed;
         uint8 x;
