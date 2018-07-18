@@ -8,7 +8,7 @@ const StateChannel = artifacts.require('./StateChannel.sol')
 const Commit = require('./helpers/commitments.js')
 
 contract('BattleShips', function (accounts) {
-    let battleship, boardcommitments, tx, turn, statechannel
+    let battleship, battleship2, boardcommitments, tx, turn, statechannel
 
     const player1 = accounts[1]
     const player2 = accounts[2]
@@ -91,6 +91,7 @@ contract('BattleShips', function (accounts) {
     before( async () => {
         statechannel = await StateChannel.new([player1, player2], 20)
         battleship = await BattleShips.new(player1, player2, '0x0')
+        battleship2 = await BattleShips.new(player1, player2, statechannel.address)
 
         // create board commitments
         for (var i = 0; i < p1board.length; i++) {
@@ -264,6 +265,19 @@ contract('BattleShips', function (accounts) {
         log = tx.logs.find(log => log.event == 'Reveal')
         assert.equal(log.args.player, player1)
         assert.equal(log.args.hit, true)
+    })
+
+    it('get the state from one game & set it in the state channel', async () => {
+        await statechannel.triggerDispute({from: player1})
+        let hstate = await battleship.getStateHash()
+        let i = 5
+        var sigs = []
+        sigs = sigs.concat(await signStateHash(i, hstate, statechannel.address, player1)) 
+        sigs = sigs.concat(await signStateHash(i, hstate, statechannel.address, player2)) 
+        tx = await statechannel.setstate(sigs, i, hstate, {from: player1})
+        log = tx.logs.find(log => log.event == 'EventEvidence')
+        //assert(log.args.bestround.eq(i))
+        assert.equal(log.args.hstate, hstate)
     })
 
     it('finish the game and claim winner', async () => {

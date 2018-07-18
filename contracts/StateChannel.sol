@@ -63,6 +63,8 @@ contract StateChannel {
 
         // Commitment to signed message for new state hash.
         bytes32 h = keccak256(_hstate, _i, address(this));
+        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+        h = keccak256(prefix, h);
 
         // Check all parties in channel have signed it.
         for (uint i = 0; i < plist.length; i++) {
