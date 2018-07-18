@@ -3,7 +3,7 @@ const Web3 = require('web3')
 const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
 const abi = require('ethereumjs-abi')
 const BigNumber = require('bignumber.js')
-const StateChannel = require('./StateChannel.sol')
+const StateChannel = artifacts.require('./StateChannel.sol')
 
 const Commit = require('./helpers/commitments.js')
 
@@ -13,9 +13,20 @@ contract('BattleShips', function (accounts) {
     const player1 = accounts[1]
     const player2 = accounts[2]
 
-    const p1ships =[[0,0, 3,0],
-                    [0,2, 2,2],
-                    [0,4, 2,4],
+//    const p1ships =[[0,0, 3,0],
+//                    [0,2, 2,2],
+//                    [0,4, 2,4],
+//                    [0,6, 1,6],
+//                    [0,8, 1,8],
+//                    [8,0, 9,0],
+//                    [9,2, 9,2],
+//                    [9,4, 9,4],
+//                    [9,6, 9,6],
+//                    [9,8, 9,8]].reverse()
+
+    const p1ships =[[0,0, 1,0],
+                    [0,2, 1,2],
+                    [0,4, 1,4],
                     [0,6, 1,6],
                     [0,8, 1,8],
                     [8,0, 9,0],
@@ -24,16 +35,33 @@ contract('BattleShips', function (accounts) {
                     [9,6, 9,6],
                     [9,8, 9,8]].reverse()
 
+    //const p1x1 = [0,0,0,0,0,8,9,9,9,9].reverse()
+    //const p1y1 = [0,2,4,6,8,0,2,4,6,8].reverse()
+    //const p1x2 = [3,2,2,1,1,9,9,9,9,9].reverse()
+    //const p1y2 = [0,2,4,6,8,0,2,4,6,8].reverse()
+    
     const p1x1 = [0,0,0,0,0,8,9,9,9,9].reverse()
     const p1y1 = [0,2,4,6,8,0,2,4,6,8].reverse()
-    const p1x2 = [3,2,2,1,1,9,9,9,9,9].reverse()
+    const p1x2 = [1,1,1,1,1,9,9,9,9,9].reverse()
     const p1y2 = [0,2,4,6,8,0,2,4,6,8].reverse()
+    
+    //const p1board = 
+    //   [[1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+    //    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+    //    [1, 0, 1, 0, 1, 0, 0, 0, 0, 0],
+    //    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    //    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    //    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    //    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    //    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    //    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    //    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]   
     
     const p1board = 
        [[1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
         [1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
-        [1, 0, 1, 0, 1, 0, 0, 0, 0, 0],
-        [1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -113,6 +141,18 @@ contract('BattleShips', function (accounts) {
             cs[0][0], cs[1][0],
             cs[2][0], cs[3][0]]
 
+        shipSquareBits = 
+           [cs[9][8], cs[9][6],
+            cs[9][4], cs[9][2],
+            cs[8][0], cs[9][0],
+            cs[0][8], cs[1][8],
+            cs[0][6], cs[1][6],
+            cs[0][4], cs[1][4],
+            cs[0][2],
+            cs[1][2],
+            cs[0][0], cs[1][0],
+            ]
+
         //p1shipCommits = p1shipCommits.reverse()
         //p1shipBits = p1shipBits.reverse()
                        
@@ -169,24 +209,24 @@ contract('BattleShips', function (accounts) {
         assert(log.args.x.eq(1))
         assert(log.args.y.eq(2))
         
-        tx = await battleship.reveal(p1boardBits[1][2], p1board[1][2] == 1, {from: player2})
-        
-        log = tx.logs.find(log => log.event == 'Reveal')
-        assert.equal(log.args.player, player2)
-        assert.equal(log.args.hit, true)
+//        tx = await battleship.reveal(p1boardBits[1][2], p1board[1][2] == 1, {from: player2})
+//        
+//        log = tx.logs.find(log => log.event == 'Reveal')
+//        assert.equal(log.args.player, player2)
+//        assert.equal(log.args.hit, true)
     })
 
     it('player1 sinks the boat', async () => {
         // player 1 attacks (2,2)
-        tx = await battleship.attack(2, 2, {from: player1})
-    
-        log = tx.logs.find(log => log.event == 'Attack')
-        assert.equal(log.args.player, player1)
-        assert(log.args.x.eq(2))
-        assert(log.args.y.eq(2))
+//        tx = await battleship.attack(2, 2, {from: player1})
+//    
+//        log = tx.logs.find(log => log.event == 'Attack')
+//        assert.equal(log.args.player, player1)
+//        assert(log.args.x.eq(2))
+//        assert(log.args.y.eq(2))
        
         // changed the order here!!!!!!!!!!!! 
-        tx = await battleship.revealSink(p1boardBits[2][2], p1shipBits[8], 8, p1ships[8][0], p1ships[8][1], p1ships[8][2], p1ships[8][3], {from: player2})
+        tx = await battleship.revealSink(p1boardBits[1][2], p1shipBits[8], 8, p1ships[8][0], p1ships[8][1], p1ships[8][2], p1ships[8][3], {from: player2})
         
         log = tx.logs.find(log => log.event == 'RevealSink')
         assert.equal(log.args.player, player2)
@@ -212,14 +252,14 @@ contract('BattleShips', function (accounts) {
 
     it('player 2 attacks', async () => {
         // player 2 attacks (3,0)
-        tx = await battleship.attack(3, 0, {from: player2})
+        tx = await battleship.attack(1, 0, {from: player2})
 
         log = tx.logs.find(log => log.event == 'Attack')
         assert.equal(log.args.player, player2)
-        assert(log.args.x.eq(3))
+        assert(log.args.x.eq(1))
         assert(log.args.y.eq(0))
         
-        tx = await battleship.reveal(p1boardBits[3][0], p1board[3][0] == 1, {from: player1})
+        tx = await battleship.reveal(p1boardBits[1][0], p1board[1][0] == 1, {from: player1})
 
         log = tx.logs.find(log => log.event == 'Reveal')
         assert.equal(log.args.player, player1)
@@ -228,7 +268,7 @@ contract('BattleShips', function (accounts) {
 
     it('finish the game and claim winner', async () => {
         // player 2 sink 4x1
-        let movesp2 = [[2,0], [1,0], [0,0]] 
+        let movesp2 = [[0,0]] 
         for (var i = 0; i < movesp2.length; i++) {
             var move = movesp2[i]
             tx = await battleship.attack(move[0], move[1], {from: player2})
@@ -254,7 +294,7 @@ contract('BattleShips', function (accounts) {
 
 
         // player 2 sink 3x1
-        movesp2 = [[0,2], [1,2], [2,2]]
+        movesp2 = [[0,2], [1,2]]
         for (var i = 0; i < movesp2.length; i++) {
             var move = movesp2[i]
             tx = await battleship.attack(move[0], move[1], {from: player2})
@@ -278,7 +318,7 @@ contract('BattleShips', function (accounts) {
         }
 
         // player 2 sinks 3x2
-        movesp2 = [[0,4], [1,4], [2,4]]
+        movesp2 = [[0,4], [1,4]]
         for (var i = 0; i < movesp2.length; i++) {
             var move = movesp2[i]
             tx = await battleship.attack(move[0], move[1], {from: player2})
@@ -477,17 +517,17 @@ contract('BattleShips', function (accounts) {
         assert.equal(log, undefined)
     })
 
-    it('player 1 reveals his board since the game is over', async () => {
-        tx = await battleship.checkBoard(0, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player1})
-        log = tx.logs.find(log => log.event == 'Winner')
-        assert.equal(log, undefined)
-    })
-
-    it('player 2 claims victory', async () => {
-        tx = await battleship.claimWin({from: player2})
-        
-        log = tx.logs.find(log => log.event == 'Winner')
-        assert.equal(log.args.player, player2)
-    })
+//    it('player 1 reveals his board since the game is over', async () => {
+//        tx = await battleship.checkBoard(0, shipSquareBits, p1shipBits, p1x1, p1y1, p1x2, p1y2, {from: player1})
+//        log = tx.logs.find(log => log.event == 'Winner')
+//        assert.equal(log, undefined)
+//    })
+//
+//    it('player 2 claims victory', async () => {
+//        tx = await battleship.claimWin({from: player2})
+//        
+//        log = tx.logs.find(log => log.event == 'Winner')
+//        assert.equal(log.args.player, player2)
+//    })
 
 })
