@@ -84,7 +84,7 @@ contract BattleShips {
     only allow if the channel is off
     */
     modifier onlyChannelOff() {
-        require(stateChannel == 0x0 || stateChannel.status() == StateChannel.Status.OFF);
+        require(stateChannel.status() == StateChannel.Status.OFF);
         _;
     }
     
