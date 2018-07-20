@@ -299,6 +299,7 @@ contract('BattleShips', function (accounts) {
             var move = movesp2[i]
             tx = await battleship.attack(move[0], move[1], {from: player2})
             log = tx.logs.find(log => log.event == 'Attack')
+            console.log('attack transaction', tx)
             assert.equal(log.args.player, player2)
             assert(log.args.x.eq(move[0]))
             assert(log.args.y.eq(move[1]))
