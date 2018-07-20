@@ -39,6 +39,19 @@ verifySquareCommit = function (commit, r, isShip) {
     return commit.equals(hash)
 }
 
+signStateHash = async function (i, hstate, address, account) {
+    let msg = '0x' + abi.soliditySHA3(
+            ['bytes32', 'uint256', 'address'],
+            [hstate, i, address]).toString('hex')
+    await web3.eth.personal.unlockAccount(account, "")
+    var sig = await web3.eth.sign(msg, account)
+    sig = sig.slice(2)
+    var r = `0x${sig.slice(0, 64)}`
+    var s = `0x${sig.slice(64, 128)}`
+    var v = `0x${sig.slice(128, 130)}`
+    return [v,r,s] 
+}
+
 module.exports = {
     randInt: randInt,
     squareHash: squareHash,
