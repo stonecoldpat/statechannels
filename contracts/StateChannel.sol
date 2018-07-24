@@ -50,8 +50,8 @@ contract StateChannel {
         // Only accept a single command during a dispute
         require( status == Status.ON );
         status = Status.DISPUTE;
-        t_start = block.timestamp + t_start;
-
+        t_start = block.timestamp;
+        deadline = block.number + disputePeriod;
     }
 
     // Store a state hash that was authorised by all parties in the state channel
@@ -88,7 +88,6 @@ contract StateChannel {
 
         // Return to normal operations and update bestRound
         status = Status.OFF;
-        bestRound = bestRound + 1;
 
         // Store dispute... due to successful on-chain transition
         dispute = Dispute(bestRound, t_start, deadline);
