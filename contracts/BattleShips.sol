@@ -290,59 +290,59 @@ contract BattleShips {
                         return false;
                     }
                 }
-                 //} else if (i < 9) {
-                 //    // ship of size 3
-                 //    for (x = shipX1[i]; x <= shipX2[i]; x++){
-                 //        for (y = shipY1[i]; y <= shipY2[i]; y++){
-                 //            if (boards[idx].revealed[x][y]) {
-                 //                // count number of tiles revealed during the game
-                 //                revealed++;
-                 //                if (!boards[idx].shipTile[x][y]) {
-                 //                    // one of the tiles indicated water
-                 //                    declareWinner(1-idx);
-                 //                    return false;
-                 //                }
-                 //            }
-                 //            if (keccak256(abi.encodePacked(shipFieldRandomness[10+(i-7)*3+size], true)) != boards[idx].commitments[x][y]){
-                 //                //cheating
-                 //                declareWinner(1-idx);
-                 //                return false;
-                 //             }
-                 //             size++;
-                 //         }   
-                 //     }
-                 //     if (size != 3) {
-                 //        //cheating
-                 //        declareWinner(1-idx);
-                 //        return false;
-                 //     }
-                 //} else {
-                 //     // ship of size 4
-                 //    for (x = shipX1[i]; x <= shipX2[i]; x++){
-                 //        for (y = shipY1[i]; y <= shipY2[i]; y++){
-                 //            if (boards[idx].revealed[x][y]) {
-                 //                // count number of tiles revealed during the game
-                 //                revealed++;
-                 //                if (!boards[idx].shipTile[x][y]) {
-                 //                    // one of the tiles indicated water
-                 //                    declareWinner(1-idx);
-                 //                    return false;
-                 //                }
-                 //            }
-                 //            if (keccak256(abi.encodePacked(shipFieldRandomness[16+size], true)) != boards[idx].commitments[x][y]){
-                 //                //cheating
-                 //                declareWinner(1-idx);
-                 //                return false;
-                 //             }
-                 //             size++;
-                 //         }   
-                 //     }
-                 //     if (size != 4) {
-                 //        //cheating
-                 //        declareWinner(1-idx);
-                 //        return false;
-                 //    }
-                 //}
+//                 } else if (i < 9) {
+//                     // ship of size 3
+//                     for (x = shipX1[i]; x <= shipX2[i]; x++){
+//                         for (y = shipY1[i]; y <= shipY2[i]; y++){
+//                             if (boards[idx].revealed[x][y]) {
+//                                 // count number of tiles revealed during the game
+//                                 revealed++;
+//                                 if (!boards[idx].shipTile[x][y]) {
+//                                     // one of the tiles indicated water
+//                                     declareWinner(1-idx);
+//                                     return false;
+//                                 }
+//                             }
+//                             if (keccak256(abi.encodePacked(shipFieldRandomness[10+(i-7)*3+size], true)) != boards[idx].commitments[x][y]){
+//                                 //cheating
+//                                 declareWinner(1-idx);
+//                                 return false;
+//                              }
+//                              size++;
+//                          }   
+//                      }
+//                      if (size != 3) {
+//                         //cheating
+//                         declareWinner(1-idx);
+//                         return false;
+//                      }
+//                 } else {
+//                      // ship of size 4
+//                     for (x = shipX1[i]; x <= shipX2[i]; x++){
+//                         for (y = shipY1[i]; y <= shipY2[i]; y++){
+//                             if (boards[idx].revealed[x][y]) {
+//                                 // count number of tiles revealed during the game
+//                                 revealed++;
+//                                 if (!boards[idx].shipTile[x][y]) {
+//                                     // one of the tiles indicated water
+//                                     declareWinner(1-idx);
+//                                     return false;
+//                                 }
+//                             }
+//                             if (keccak256(abi.encodePacked(shipFieldRandomness[16+size], true)) != boards[idx].commitments[x][y]){
+//                                 //cheating
+//                                 declareWinner(1-idx);
+//                                 return false;
+//                              }
+//                              size++;
+//                          }   
+//                      }
+//                      if (size != 4) {
+//                         //cheating
+//                         declareWinner(1-idx);
+//                         return false;
+//                     }
+//                 }
                 if (revealed == size) {
                     // the ship should have been revealed during the game but wasn't
                     declareWinner(1-idx);
