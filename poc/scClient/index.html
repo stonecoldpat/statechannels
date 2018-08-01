@@ -1,0 +1,47 @@
+<html>
+
+<head>
+    <script src="./dist/index.js"></script>
+    <link rel="stylesheet" href="index.css">
+</head>
+
+<body>
+    <div>
+        <div>
+            <div>
+                <button id="deployContract">Deploy new state channel.</button>
+                <div id="deployedContractAddress"></div>
+            </div>
+        </div>
+        <div id="countingGame">
+            <div class="gameComponent">
+                <div class="playerHeader">
+                    <b>Player 1</b>
+                    <div>Address: 0xf17f52151ebef6c7334fad080c5704d77216b732</div>
+                </div>
+                <div>
+                    <label for="player1Round">Round</label>
+                    <input id="player1Round"></input>
+                    <label for="player1State">State</label>
+                    <input id="player1State"></input>
+                    <button id="player1SignButton">Hash and sign</button>
+                </div>
+                <div class="playerSigs" id="player1Signatures">
+
+                </div>
+            </div>
+            <div class="gameComponent" id="counterContainer">
+                <div class="counterComponent">
+                    Read the alphabet
+                </div>
+                <div>
+                    <button id="counterButton" class="counterComponent">Next letter</button>
+                </div>
+                <div class="counterComponent" id="counterContent"></div>
+            </div>
+            <div class="gameComponent">
+                Player2
+            </div>
+        </div>
+    </div>
+</body>

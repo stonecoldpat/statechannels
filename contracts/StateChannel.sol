@@ -52,6 +52,7 @@ contract StateChannel {
         status = Status.DISPUTE;
         t_start = block.timestamp;
         deadline = block.number + disputePeriod;
+        emit EventDispute(deadline);
     }
 
     // Store a state hash that was authorised by all parties in the state channel

@@ -1,0 +1,29 @@
+#countingGame {
+    display: flex;
+    justify-content: space-between;
+    
+}
+
+.gameComponent {
+    border: 1px solid red;
+    flex: 0 1 150px;
+    max-width: 33.3%;
+    flex: 1 1 0;
+    text-align: center;
+    min-height: 100px;
+    word-wrap:break-word
+}
+
+.playerSigs {
+    text-align: left;
+}
+
+#counterContainer {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+}
+
+.counterComponent {
+    border: 1px solid green;
+}
