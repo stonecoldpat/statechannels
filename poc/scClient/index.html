@@ -7,10 +7,62 @@
 
 <body>
     <div>
-        <div>
+        <div id="controlBar">
+            <div id="blockCounterContainer">
+                <label for="blockCounter">Block counter: </label>
+                <span id="blockCounter"></span>
+                <button id="mineBlockButton">Mine a block</button>
+            </div>
             <div>
                 <button id="deployContract">Deploy new state channel.</button>
                 <div id="deployedContractAddress"></div>
+            </div>
+        </div>
+        <div id="stateChannelContainer">
+            <div id="triggerDispute" class="stateChannelFunction">
+                <div class="stateChannelHeader"><b>Trigger dispute</b></div>
+                <div>
+                    <label for="disputingPlayerAddress">Disputing player</label>
+                    <input id="disputingPlayerAddress"></input>
+                    <button id="triggerDisputeButton">Trigger dispute</button>
+                </div>
+                <div id="triggerDisputeFeedback"></div>
+            </div>
+            <div id="setStateContainer" class="stateChannelFunction">
+                <div class="stateChannelHeader"><b>Set state</b></div>
+                <div>
+                    <div>
+                        <label for="setStatePlayer">Set state player</label>
+                        <input id="setStatePlayer"></input>
+                    </div>
+                    <div>
+                        <label for="setStatePlayer1Sig">Player 1 Sig</label>
+                        <input id="setStatePlayer1Sig"></input>
+                    </div>
+                    <div>
+                        <label for="setStatePlayer2Sig">Player 2 Sig</label>
+                        <input id="setStatePlayer2Sig"></input>
+                    </div>
+                    <div>
+                        <label for="setStateRound">Round</label>
+                        <input id="setStateRound"></input>
+                    </div>
+                    <div>
+                        <label for="setStateHState">hState</label>
+                        <input id="setStateHState"></input>
+                    </div>
+                    <button id="setStateButton">Set State</button>
+                </div>
+                <ul id="setStateFeedback"></ul>
+            </div>
+            <div id="resolveContainer" class="stateChannelFunction">
+                <div class="stateChannelHeader"><b>Resolve</b></div>
+                <div>
+                    <label for="resolvePlayerAddress">Resolve player</label>
+                    <input id="resolvePlayerAddress"></input>
+                    <button id="resolveButton">Resolve</button>
+                </div>
+                <div id="resolveFeedback"></div>
             </div>
         </div>
         <div id="countingGame">
@@ -32,7 +84,7 @@
             </div>
             <div class="gameComponent" id="counterContainer">
                 <div class="counterComponent">
-                    Read the alphabet
+                    <b>Read the alphabet</b>
                 </div>
                 <div>
                     <button id="counterButton" class="counterComponent">Next letter</button>
@@ -40,7 +92,20 @@
                 <div class="counterComponent" id="counterContent"></div>
             </div>
             <div class="gameComponent">
-                Player2
+                <div class="playerHeader">
+                    <b>Player 2</b>
+                    <div>Address: 0xc5fdf4076b8f3a5357c5e395ab970b5b54098fef</div>
+                </div>
+                <div>
+                    <label for="player2Round">Round</label>
+                    <input id="player2Round"></input>
+                    <label for="player2State">State</label>
+                    <input id="player2State"></input>
+                    <button id="player2SignButton">Hash and sign</button>
+                </div>
+                <div class="playerSigs" id="player2Signatures">
+
+                </div>
             </div>
         </div>
     </div>
