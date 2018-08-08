@@ -1,5 +1,5 @@
 # rps
-Rock-Paper-Scissors commit reveal game.
+Rock-Paper-Scissors commit reveal game in a state chanel
 
 1. npm install
 1. npm run compile
