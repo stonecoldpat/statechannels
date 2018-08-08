@@ -1,6 +1,18 @@
 import { StateChannel } from "./stateChannel";
 import Web3 from "web3";
-const web3 = new Web3("http://localhost:9545");
+//let web3;
+// window.localWeb3 = 20;
+// window.face = () => {
+//     console.log(web3);
+//     console.log(web3.currentProvider);
+//     localWeb3 = new Web3("http://localhost:9545")
+//     web3 = new Web3(web3.currentProvider);
+//     console.log(localWeb3.currentProvider);
+//     console.log(web3.currentProvider);
+// };
+// face();
+web3 = new Web3("http://localhost:9545");
+window.web3 = web3;
 
 const ACCOUNT_TRANSACTING = "0x627306090abab3a6e1400e9345bc60c78a8bef57";
 const PLAYER1ADDRESS = "0xf17f52151ebef6c7334fad080c5704d77216b732";
@@ -15,6 +27,7 @@ const deployButton = () => document.getElementById("deployContract");
 const deployedContractAddress = () => document.getElementById("deployedContractAddress");
 const incrementCounterButton = () => document.getElementById("counterButton");
 const counterContent = () => document.getElementById("counterContent");
+
 const player1Round = () => document.getElementById("player1Round");
 const player1State = () => document.getElementById("player1State");
 const player1SignButton = () => document.getElementById("player1SignButton");
@@ -23,6 +36,12 @@ const player2Round = () => document.getElementById("player2Round");
 const player2State = () => document.getElementById("player2State");
 const player2SignButton = () => document.getElementById("player2SignButton");
 const player2Signatures = () => document.getElementById("player2Signatures");
+const player1RoundH = () => document.getElementById("player1RoundH");
+const player1StateH = () => document.getElementById("player1StateH");
+const player1SignButtonH = () => document.getElementById("player1SignButtonH");
+const player2RoundH = () => document.getElementById("player2RoundH");
+const player2StateH = () => document.getElementById("player2StateH");
+const player2SignButtonH = () => document.getElementById("player2SignButtonH");
 const triggerDisputeButton = () => document.getElementById("triggerDisputeButton");
 const disputingPlayerAddress = () => document.getElementById("disputingPlayerAddress");
 const triggerDisputeFeedback = () => document.getElementById("triggerDisputeFeedback");
@@ -113,8 +132,7 @@ const signAndRecord = async (round, state, sigContentsBox, stateChannelAddress, 
     sigContentsBox.appendChild(list);
 };
 
-const hashAndSign = async (round, state, channelAddress, playerAddress) => {
-    const hState = web3.utils.sha3(state);
+const hashAndSign = async (round, hState, channelAddress, playerAddress) => {
     let msg = web3.utils.soliditySha3(
         {
             t: "bytes32",
@@ -153,6 +171,10 @@ const mineABlock = () => {
     web3.eth.sendTransaction({ to: PLAYER1ADDRESS, from: PLAYER2ADDRESS, value: web3.utils.toWei("0.001", "ether") });
 };
 
+// TODO: //
+// what happens when we try to re-use the state channel for multiple contracts?
+// TODO: //
+
 // initialise
 document.addEventListener("DOMContentLoaded", () => {
     startBlockCounterClock();
@@ -166,7 +188,16 @@ document.addEventListener("DOMContentLoaded", () => {
     player1SignButton().addEventListener("click", async () => {
         await signAndRecord(
             player1Round().value,
-            player1State().value,
+            web3.utils.sha3(player1State().value),
+            player1Signatures(),
+            stateChannel.address(),
+            PLAYER1ADDRESS
+        );
+    });
+    player1SignButtonH().addEventListener("click", async () => {
+        await signAndRecord(
+            player1RoundH().value,
+            player1StateH().value,
             player1Signatures(),
             stateChannel.address(),
             PLAYER1ADDRESS
@@ -175,7 +206,16 @@ document.addEventListener("DOMContentLoaded", () => {
     player2SignButton().addEventListener("click", async () => {
         await signAndRecord(
             player2Round().value,
-            player2State().value,
+            web3.utils.sha3(player2State().value),
+            player2Signatures(),
+            stateChannel.address(),
+            PLAYER2ADDRESS
+        );
+    });
+    player2SignButtonH().addEventListener("click", async () => {
+        await signAndRecord(
+            player2RoundH().value,
+            player2StateH().value,
             player2Signatures(),
             stateChannel.address(),
             PLAYER2ADDRESS
