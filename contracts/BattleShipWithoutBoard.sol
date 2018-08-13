@@ -1,6 +1,24 @@
 pragma solidity ^0.4.24;
 pragma experimental ABIEncoderV2; // Required to support an array of "bytes' which is annoying 
 
+contract StateChannel {
+    
+    // All functions will "throw" if they are not applicable when called. 
+    // i.e. cannot retrieve a state hash, if no dispute process has occurred!
+    // TODO: Confirm/Doublecheck that a "exception" is not encapsulated to just sub-contract. Should be transaction-wide.
+    function triggerDispute() public;
+    function setstate(uint256[] sigs, uint256 _i, bytes32 _hstate) public;
+    function resolve() public; 
+    function getStateHash() public returns (bytes32);
+}
+
+// State Channel Interface
+contract StateChannelFactory {
+
+  function createStateChannel(address[] _parties, uint _disputePeriod) public returns (address addr);
+  
+}
+
 
 // Paddy: We may need to use an "interface" to do this part. Gas cost for deployment is going to get high. 
 // i.e. point to a known contract that can deploy state channels, and who will return us our state channel address. 
@@ -25,11 +43,14 @@ contract BattleShipWithoutBoard {
      * 2. Track whether the state channel is on/off (modifier will disable functionality in contract if turned on)
      * 3. Track whether this battleship game is in the main chain or a private "off-chain" network (disable some functionality if in "off-chain" network)
      */
-    // StateChannel stateChannel;
+    StateChannel stateChannel;
+    StateChannelFactory stateChannelFactory; // TODO: Hard-code an address. Only one must exist. 
+    
     bool notprivatenetwork = false; // If this contract is deployed via a private network to simulate execution. Set this to true. Compiler can set it. 
     bool statechannelon = false; // "false" if state channel contract is not instantiated, and "true" if instantiated.  
     uint disputetime; // fixed time for the dispute process 
     uint extratime; // We need to "add time" to any timer to take into account dispute process (triggering + resolving). 
+    uint channelCounter; // How many times has a state channel been created? 
     
     // Attach to all functions in the contract. 
     // Disables all functionality if the state channel is instantiated 
@@ -43,6 +64,61 @@ contract BattleShipWithoutBoard {
     modifier disabledInPrivateNetwork() {
         require(notprivatenetwork);
         _;
+    }
+    
+    // Have all parties agreed to lock this contract? 
+    function lock(bytes[] _signatures) {
+        require(!statechannelon);
+        
+        // Check signatures from everybody in battleship game
+        bytes32 sighash = sha256("lock",channelCounter, round,address(this));
+        for(uint i=0; i<players.length; i++) {
+            require(recover(sighash, _signatures[i]) == players[i]);
+        }
+        
+        // All good. Lets lock up contract
+        channelCounter += 1;
+        statechannelon = true; 
+        
+        // Create state channel contract! 
+        stateChannel = StateChannel(stateChannelFactory.createStateChannel(players, disputetime)); 
+        
+        // TODO: Perhaps some test - make sure state channel is actually created. 
+    }
+    
+    // Paddy: Work in Progress, but this looks really ugly to set the full state. 
+    // Ideally we can fit it inside one function. But perhaps we spread it across several and just submit h1,h2,h3, and h' = h(h1,h2,h3). 
+    // 
+    // Parameters: 
+    // bool[4] _ready 
+    // --> [0][1] = playerShipsReceived
+    // --> [2][3] = playerReady
+    // uint8[6] individual_ints 
+    // -> [0] = x, [1] = y, 
+    // -> [2] = round, [3] = move_ctr, 
+    // -> [4] = _totalShipPositions
+    // _> [5] = turn 
+    // address _winner 
+    // uint[4] hits 
+    // --> [0][1] is waterhits 
+    // --> [1][2] is ship_hits 
+    // Have all parties agreed to unlock this contract? 
+    function unlock(bool[4] _ready) {
+        
+        // Fetch state hash (throws if not fetchable).
+        bytes32 h = stateChannel.getStateHash(); 
+        
+        // TODO: Hash full state received in function call 
+        bytes32 _h = sha256("ok");
+        
+        // Compare hashes 
+        if(_h == h) {
+            statechannelon = false;
+            delete stateChannel;
+            
+            // Store all variables in the contract! 
+        }
+        
     }
     
     /* Expected Template Variables:
@@ -78,7 +154,7 @@ contract BattleShipWithoutBoard {
         bool sunk;
     }
     
-    address[2] public players;
+    address[] public players;
     address public winner;
     
     // Ship information 
