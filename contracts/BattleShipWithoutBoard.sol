@@ -156,6 +156,8 @@ contract BattleShipWithoutBoard {
     
     address[] public players;
     address public winner;
+    address public charity; // if both players cheat; we get coins.
+    uint public charity_balance; 
     
     // Ship information 
     mapping (address => Ship[6]) ships; 
@@ -320,26 +322,28 @@ contract BattleShipWithoutBoard {
     
     // Player picks a slot position to attack. 
     // Must be completed within a time period 
-    function attack(uint8 _x, uint8 _y) public disableForStateChannel onlyState(GamePhase.Attack) {
+    function attack(uint8 _x, uint8 _y, bytes _signature) public disableForStateChannel onlyState(GamePhase.Attack) {
         
-        // Store attack slot (if it is this player's turn)
-        if(msg.sender == players[turn]) {
+        // We require an EXPLICIT signature to be used by fraud proof
+        // Signed by the player and the function's caller doesn't matter. , caller of function doesn't matter. 
+        // co-ordinates, move, round, this contract. 
+        bytes32 sighash = sha256(_x, _y, move_ctr,round, address(this));
+        require(recover(sighash, _signature) == players[turn]);
+        
+        // Valid slot? 
+        if(checkValidSlot(_x, _y)) {
             
-            // Valid slot? 
-            if(checkValidSlot(_x, _y)) {
-            
-                // Store attack co-ordinates 
-                x = _x;
-                y = _y;
+            // Store attack co-ordinates 
+            x = _x;
+            y = _y;
                 
-                // Transition to reveal phase 
-                changeGamePlayPhase(false); 
-            }
+            // Transition to reveal phase 
+            changeGamePlayPhase(); 
         }
     }
     
     // Counterparty reveals slot. Marked as water or ship. No ship was sunk. 
-    function revealslot(bool _b, bytes _signature) public disableForStateChannel onlyState(GamePhase.Reveal){
+    function revealslot(bool _b, bytes _signature) public disableForStateChannel onlyState(GamePhase.Reveal) {
         
         // Who is the counterparty? 
         uint counterparty = (turn + 1) % 2; 
@@ -374,7 +378,7 @@ contract BattleShipWithoutBoard {
         emit RevealHit(players[counterparty], x, y, _b, move_ctr, round, _signature);
         
         // Game not finished... 
-        changeGamePlayPhase(false);
+        changeGamePlayPhase();
     }
     
         
@@ -420,7 +424,7 @@ contract BattleShipWithoutBoard {
         if(sankAllShips(players[counterparty])) { 
             return; 
         } else { // Time to finish the game 
-            changeGamePlayPhase(false);
+            changeGamePlayPhase();
         }
        
     }
@@ -428,7 +432,7 @@ contract BattleShipWithoutBoard {
     
     // Check whether all ships for a given player have been sank! 
     // Solidity rant: Should be in revealsunk(), but forced to create a new function due to callstack issues. 
-    function sankAllShips(address player) public returns (bool) onlyPlayers disableForStateChannel {
+    function sankAllShips(address player) internal disableForStateChannel returns (bool)  {
         require(phase == GamePhase.Attack || phase == GamePhase.Reveal); 
         
         // Check if all ships are sunk 
@@ -439,34 +443,39 @@ contract BattleShipWithoutBoard {
         }
         
         // Looks like all ships are sunk! 
-        changeGamePlayPhase(true);
+        phase = GamePhase.Win; 
+        winner = players[turn];
         
         return true; 
     }
     
     // Internal function to transition game phase after a move. 
-    function changeGamePlayPhase(bool finished) internal {
+    function changeGamePlayPhase() internal {
 
         // Set a new challenge time
         // TODO: "now" relies on "block.timestamp" - problems in state channel and private network will occur
         challengeTime = now + timer_challenge; 
         move_ctr = move_ctr + 1;
         
-        // Is it game over? 
-        // Winner is player who "attacked" as they sunk a battleship. 
-        if(finished) {
-            phase = GamePhase.Win; 
+        // Attacker always sign an even number "0,2,4"
+        // Opener always signers an odd number "1,3,5"
+        // Final possible move is "199" as this will open the final slot. 
+        // This function increments to 200 - which we should never reach (as that would allow 201 moves). 
+        if(move_ctr == 200) {
+            
+            phase = GamePhase.Win;
             winner = players[turn];
             return;
         }
         
+        // OK. Lets move to the next phase 
         if(GamePhase.Attack == phase) {
-                   
-            // "turn" represents who is the attacker
-            // Mod 2, allows it to go 0,1,0,1, etc.
-            turn = (turn + 1) % 2; 
             phase = GamePhase.Reveal;
         } else {
+            // We must change whose turn it is to "attack" 
+            // Mod 2, allows it to go 0,1,0,1, etc.
+            // So player 1 = 0, and player 2 = 1. 
+            turn = (turn + 1) % 2; 
             phase = GamePhase.Attack;
         }
     }
@@ -653,42 +662,78 @@ contract BattleShipWithoutBoard {
         
         // Challenge period has expired? 
         if(now > challengeTime) {
-            require(sendWinnings(winner));
+            gameOver();
         }
         
     }
     
     // Both players cheated. Forfeit their bets (or do something here). 
-    function GameOver() public onlyPlayers disableForStateChannel onlyState(GamePhase.GameOver) {
+    function gameOver() internal onlyPlayers disableForStateChannel onlyState(GamePhase.GameOver) {
         
-        // Both players forfeit their bets. 
-        bets[players[0]] = 0;
-        bets[players[1]] = 0;
+        // Ready to reset the game 
+        phase = GamePhase.Reset; 
         
-        phase = GamePhase.Reset;
-    
-    }
-    
-    // Send the final winnings 
-    function sendWinnings(address sendTo) internal returns(bool) {
-    
+        // Sort of the "winnings" 
         uint winnings = bets[players[0]] + bets[players[1]]; 
         bets[players[0]] = 0;
         bets[players[1]] = 0;
-        player_balance[sendTo] = winnings; 
         
-        // Time to reset the entire game... dedicate a full transaction to it. Avoid out of gas problems. 
-        phase = GamePhase.Reset; 
+        // Lets check if the winner cheated... 
+        if(!cheated[winner]) {
+            player_balance[winner] = player_balance[winner] + winnings; 
+        } 
         
-        return true;
+        // OK the winner cheated... 
+        // Did the loser also cheat? 
+        if(cheated[players[1]] && cheated[players[0]]) {
+            charity_balance = charity_balance + winnings; // Send coins to a charity if both players cheated. 
+        }
+        
+        // Loser didn't cheat... OK we should send them the coins
+        if(winner == players[0]) {
+             player_balance[players[1]] = player_balance[players[1]] + winnings; 
+        } else {
+            player_balance[players[0]] = player_balance[players[0]] + winnings; 
+        }
+    
     }
     
-    
     // A player has tried to take the same shot twice. This should not be allowed. 
-    // TODO: Need to update "taking a shot" to verify an external signature. Then we can simply pass two into here. 
     // Can be called at any point during the game
-    function fraudSameSlot(uint _move1, uint _move2, uint _i, uint _j, bytes[] signatures) public onlyPlayers disableForStateChannel {
-        // TODO: 
+    function fraudAttackSameCell(uint _move1, uint _move2, uint _x, uint _y, bytes[] _signatures) public onlyPlayers disableForStateChannel {
+        
+        // Fraud can only be used during certain phases 
+        require(phase == GamePhase.Attack || phase == GamePhase.Reveal || phase == GamePhase.Fraud);
+        require(msg.sender != winner); 
+        
+        // Who is the caller and the counterparty? 
+        address counterparty; 
+        if(msg.sender == players[0]) {
+            counterparty = players[1];
+        } else {
+            counterparty = players[0];
+        }
+        
+        // Check first signed cell...
+        bytes32 sighash = sha256(_x,_y, _move1, round, address(this));
+        require(recover(sighash, _signatures[0]) == counterparty);
+        
+        // Check the second signed cell
+        sighash = sha256(_x,_y, _move2, round, address(this));
+        require(recover(sighash, _signatures[0]) == counterparty);
+        
+        cheated[counterparty] = true; 
+        
+        if(phase == GamePhase.Attack || phase == GamePhase.Reveal) {
+            winner = msg.sender; 
+            phase = GamePhase.Win;
+            challengeTime = now + timer_challenge; // Winner has a fixed time period to open ships 
+            
+        } else {
+            
+            // Must be the "Fraud" phase... lets go into "gameover" mode. 
+            gameOver(); 
+        }
         
     }
     
@@ -720,23 +765,21 @@ contract BattleShipWithoutBoard {
             // Only the loser should call this fraud! 
             require(winner != msg.sender);
             
-            // If both players cheated, we just go to "gameover"
-            if(cheated[msg.sender]) {
-                GameOver();
-            } else {
-                require(sendWinnings(msg.sender));
-            }
+            // The winner didn't reveal their ships in time. 
+            cheated[winner] = true; 
+            gameOver();
         }
     }
 
     // Did counterparty not declare a ship was hit? 
     // Requires: List of signed messages from counterparty on slots
-    // Look up ship opening, identify its slots. Check if there is a signed message for each slot. Yup? Not declared as sunk. 
+    // Look up ship opening, identify its slots. Check if there is a signed message for each slot. Yup? Not declared as sunk.
+    // Can only be used during the FRAUD Phase 
     function fraudDeclaredNotHit(uint _shipindex, uint8 _x, uint8 _y, uint _move_ctr, bytes _signature) public onlyPlayers disableForStateChannel {
         
         // We can check this fraud during the game or when it has finished.
         // In both cases; the ship opening must be in the contract 
-        require(phase == GamePhase.Attack || phase == GamePhase.Reveal || phase == GamePhase.Fraud);
+        require(phase == GamePhase.Fraud);
         require(msg.sender != winner); 
         
         // Who is the caller and the counterparty? 
@@ -769,15 +812,9 @@ contract BattleShipWithoutBoard {
             // Yup! Winner cheated! 
             cheated[counterparty] = true;
             
-            // If both players cheated, then we go into "GameOver" 
-            if(cheated[players[0]] && cheated[players[1]]) {
-                GameOver();
-                return;
-            }
-            
-            // Looks like only the winner cheated... Loser gets the bet! 
-            // THIS IS OK. Only loser can call this function! 
-            sendWinnings(msg.sender);
+            // Time to close up shop 
+            gameOver();
+ 
         }
     }
     
@@ -838,16 +875,10 @@ contract BattleShipWithoutBoard {
         
         // We made it this far... so the winner must have cheated! 
         cheated[winner] = true;
-            
-        // If both players cheated, then we go into "GameOver" 
-        if(cheated[players[0]] && cheated[players[1]]) {
-            GameOver();
-            return;
-        }
-            
-        // Looks like only the winner cheated... Loser gets the bet! 
-        // THIS IS OK. Only loser can call this function! 
-        sendWinnings(msg.sender);
+         
+        // Time to close up shop    
+        gameOver();
+  
     }
     
     // Reset and destory all variables in this game. Start afresh (do not delete balance!)
@@ -865,58 +896,42 @@ contract BattleShipWithoutBoard {
    * @param _hash bytes32 message, the hash is the signed message. What is recovered is the signer address.
    * @param _signature bytes signature, the signature is generated using web3.eth.sign()
    */
-  function recover(bytes32 _hash, bytes _signature)
-    internal
-    pure
-    returns (address)
-  {
-    bytes32 r;
-    bytes32 s;
-    uint8 v;
-
-    // Check the signature length
-    if (_signature.length != 65) {
-      return (address(0));
+  function recover(bytes32 _hash, bytes _signature) internal pure returns (address) {
+      bytes32 r;
+      bytes32 s;
+      uint8 v;
+      
+      // Check the signature length
+      if (_signature.length != 65) {
+          return (address(0)); 
+          
+      }
+      
+      // Divide the signature in r, s and v variables
+      // ecrecover takes the signature parameters, and the only way to get them
+      // currently is to use assembly.
+      // solium-disable-next-line security/no-inline-assembly
+      
+      assembly { 
+          r := mload(add(_signature, 32))
+          s := mload(add(_signature, 64))
+          v := byte(0, mload(add(_signature, 96)))
+          
+      }
+      
+      // Version of signature should be 27 or 28, but 0 and 1 are also possible versions
+      if (v < 27) {
+          v += 27;
+          
+      }
+      
+      // If the version is correct return the signer address
+      if (v != 27 && v != 28) { 
+          return (address(0));
+          
+      } else {
+          // solium-disable-next-line arg-overflow
+          return ecrecover(_hash, v, r, s);
     }
-
-    // Divide the signature in r, s and v variables
-    // ecrecover takes the signature parameters, and the only way to get them
-    // currently is to use assembly.
-    // solium-disable-next-line security/no-inline-assembly
-    assembly {
-      r := mload(add(_signature, 32))
-      s := mload(add(_signature, 64))
-      v := byte(0, mload(add(_signature, 96)))
-    }
-
-    // Version of signature should be 27 or 28, but 0 and 1 are also possible versions
-    if (v < 27) {
-      v += 27;
-    }
-
-    // If the version is correct return the signer address
-    if (v != 27 && v != 28) {
-      return (address(0));
-    } else {
-      // solium-disable-next-line arg-overflow
-      return ecrecover(_hash, v, r, s);
-    }
-  }
-
-  /**
-   * toEthSignedMessageHash
-   * @dev prefix a bytes32 value with "\x19Ethereum Signed Message:"
-   * and hash the result
-   */
-  function toEthSignedMessageHash(bytes32 _hash)
-    internal
-    pure
-    returns (bytes32)
-  {
-    // 32 is the length in bytes of hash,
-    // enforced by the type signature above
-    return keccak256(
-      abi.encodePacked("\x19Ethereum Signed Message:\n32", _hash)
-    );
   }
 }
