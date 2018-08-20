@@ -284,7 +284,6 @@ contract BattleShipWithoutBoard {
     }
     
     // Declare ready to play the game (i.e. all remaining ship commitments were verified off-chain)  
-    // TODO: Could be optimisied, not end of world. 
     // Of course - this implies both players have "accepted" the other parties bet. 
     function readyToPlay() public onlyPlayers disableForStateChannel onlyState(GamePhase.Setup) { 
         if(msg.sender == players[0]) {
@@ -416,26 +415,33 @@ contract BattleShipWithoutBoard {
             fraudDetected(counterparty);
             return; 
         }
-            
-        // Time to finish the game 
-        changeGamePlayPhase(false);
+        
+        // Check if all ships are now sunk (and if so, finish the game)! 
+        if(sankAllShips(players[counterparty])) { 
+            return; 
+        } else { // Time to finish the game 
+            changeGamePlayPhase(false);
+        }
+       
     }
     
     
     // Check whether all ships for a given player have been sank! 
     // Solidity rant: Should be in revealsunk(), but forced to create a new function due to callstack issues. 
-    function sankAllShips(address player) public onlyPlayers disableForStateChannel {
+    function sankAllShips(address player) public returns (bool) onlyPlayers disableForStateChannel {
         require(phase == GamePhase.Attack || phase == GamePhase.Reveal); 
         
         // Check if all ships are sunk 
         for(uint i=0; i<ships[player].length; i++) {
             if(!ships[player][i].sunk) {
-                return;
+                return false;
             }
         }
         
         // Looks like all ships are sunk! 
         changeGamePlayPhase(true);
+        
+        return true; 
     }
     
     // Internal function to transition game phase after a move. 
@@ -676,6 +682,16 @@ contract BattleShipWithoutBoard {
         
         return true;
     }
+    
+    
+    // A player has tried to take the same shot twice. This should not be allowed. 
+    // TODO: Need to update "taking a shot" to verify an external signature. Then we can simply pass two into here. 
+    // Can be called at any point during the game
+    function fraudSameSlot(uint _move1, uint _move2, uint _i, uint _j, bytes[] signatures) public onlyPlayers disableForStateChannel {
+        // TODO: 
+        
+    }
+    
     
     // All moves have a "time-out". If the player times out, we can finish the game early
     // "or" claim all the winnings! 
