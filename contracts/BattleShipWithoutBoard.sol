@@ -204,8 +204,14 @@ contract BattleShipWithoutBoard {
             } else {
                 toUpdate = players[1];
             }
-                
-
+            
+            _shiphash[i] = ships[toUpdate][i % sizes.length].hash;
+            _x1[i] = ships[toUpdate][i % sizes.length].x1;
+            _y1[i] = ships[toUpdate][i % sizes.length].y1;
+            _x2[i] = ships[toUpdate][i % sizes.length].x2;
+            _y2[i] = ships[toUpdate][i % sizes.length].y2;
+            _sunk[i] = ships[toUpdate][i % sizes.length].sunk; 
+    
         }
         
         // Compute state hash - that will need to be signed! 
