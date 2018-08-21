@@ -1,6 +1,9 @@
 pragma solidity ^0.4.24;
 pragma experimental ABIEncoderV2; // Required to support an array of "bytes' which is annoying 
 
+/*
+ * WORK IN PROGRESS. STILL UNDER DEVELOPMENT. THIS IS A DRAFT. DO NOT USE IN PRODUCTION. NOT TESTED AT ALL. THANK YOU, PADDY. 
+ */
 contract StateChannel {
     
     // All functions will "throw" if they are not applicable when called. 
@@ -19,19 +22,10 @@ contract StateChannelFactory {
   
 }
 
-
-// Paddy: We may need to use an "interface" to do this part. Gas cost for deployment is going to get high. 
-// i.e. point to a known contract that can deploy state channels, and who will return us our state channel address. 
-// Then we can also have an interface for the state channel, i.e. we know how to interact with it. 
-// I think the HardFork Oracle from github has an example of how to do it. 
-// import "./StateChannel.sol";
-
 /*
- * WARNING: WORK IN PROGRESS. STILL UNDER DEVELOPMENT. THIS IS A DRAFT. DO NOT USE IN PRODUCTION. NOT TESTED AT ALL. THANK YOU, PADDY. 
- * Game Rules: Six ships, all can be placed on the board (including adjacent to each other). Players take turns hitting other player's board. 
- * Important Data Structures: A commitment to every ship. 
- * Fraud proofs: Ship marked at the same location, Ship not declared as sunk. Slot not declared as hitting ship 
- * Weakness: We have to rely on a player 'detecting' that a slot opening is not correct - as we do not have full commitment to board.  
+ * Game Rules: Six ships, all can be placed on the board. Players take turns hitting other player's board. 
+ * Our game only relies on a commitment to every ship; failure to set up correctly eventually allows the loser to claim all winnings. 
+ * Fraud proofs are used to allow both players to "prove" the counterparty has cheated. Necessary to minimise storage requirements. 
  * Why? Because sending a 10x10 grid is ~2m gas. Could have root + merkle tree; but impl complex + still significant gas overhead. 
  *
  */ 
@@ -61,13 +55,13 @@ contract BattleShipWithoutBoard {
     
     // Attach to all functions in the contract "with side-effects" 
     // This should disable all functionality if this contract is deployed via private network. 
-    modifier disabledInPrivateNetwork() {
+    modifier disableForPrivateNetwork() {
         require(notprivatenetwork);
         _;
     }
     
     // Have all parties agreed to lock this contract? 
-    function lock(bytes[] _signatures) {
+    function lock(bytes[] _signatures) public disableForStateChannel disableForPrivateNetwork {
         require(!statechannelon);
         
         // Check signatures from everybody in battleship game
@@ -82,8 +76,6 @@ contract BattleShipWithoutBoard {
         
         // Create state channel contract! 
         stateChannel = StateChannel(stateChannelFactory.createStateChannel(players, disputetime)); 
-        
-        // TODO: Perhaps some test - make sure state channel is actually created. 
     }
     
     // Paddy: Work in Progress, but this looks really ugly to set the full state. 
@@ -93,32 +85,132 @@ contract BattleShipWithoutBoard {
     // bool[4] _ready 
     // --> [0][1] = playerShipsReceived
     // --> [2][3] = playerReady
-    // uint8[6] individual_ints 
+    // --> [4][5] = cheated
+    // _uints8[2]
     // -> [0] = x, [1] = y, 
-    // -> [2] = round, [3] = move_ctr, 
-    // -> [4] = _totalShipPositions
-    // _> [5] = turn 
+    // uints[7] uints 
+    // -> [0] = round, [1] = move_ctr, 
+    // -> [2] = _totalShipPositions
+    // -> [3] = turn 
+    // -> [4] = Phase
+    // -> [5] = challengeTime
+    // -> [6] = r ---> Random nonce! 
     // address _winner 
-    // uint[4] hits 
+    // uint[4] maps 
     // --> [0][1] is waterhits 
-    // --> [1][2] is ship_hits 
+    // --> [2][3] is ship_hits 
+    // --> [4][5] is balance
+    // --> [6][7] is bets 
+    // List of ship information (hash, co-ordinates, etc)
+    // "r" is the random nonce, agreed by both parties. 
     // Have all parties agreed to unlock this contract? 
-    function unlock(bool[4] _ready) {
+    function unlock(bool[6] _bool, uint8[2] _uints8, uint8[7] _uints, address _winner, uint[8] _maps, bytes32[] _shiphash, uint8[] _x1, uint8[] _y1, uint8[] _x2, uint8[] _y2, bool[] _sunk) public disableForStateChannel disableForPrivateNetwork {
         
-        // Fetch state hash (throws if not fetchable).
-        bytes32 h = stateChannel.getStateHash(); 
-        
-        // TODO: Hash full state received in function call 
-        bytes32 _h = sha256("ok");
+        // "round" is included in _uints
+        bytes32 _h = sha256(_bool, _uints8, _uints, _winner, _maps, address(this));
+        _h = sha256(_h, _shiphash, _x1, _y1, _x2, _y2, _sunk);
         
         // Compare hashes 
-        if(_h == h) {
+        if(_h == stateChannel.getStateHash()) {
             statechannelon = false;
             delete stateChannel;
             
-            // Store all variables in the contract! 
+            // Store the "_ready" variables 
+            playerShipsReceived[0] = _bool[0];
+            playerShipsReceived[1] = _bool[1];
+            playerReady[0] = _bool[2];
+            playerReady[1] = _bool[3]; 
+            cheated[players[0]] = _bool[4];
+            cheated[players[1]] = _bool[5];
+            
+            // Store the "individual uints" 
+            x = _uints8[0];
+            y = _uints8[1];
+            round = _uints[0]; 
+            move_ctr = _uints[1];
+            totalShipPositions = _uints[2];
+            turn = _uints[3]; 
+            phase = GamePhase(_uints[4]);
+            challengeTime = _uints[5];
+            
+            // Store Winner
+            winner = _winner;
+            
+            // Store mappings
+            water_hits[players[0]] = _maps[0];
+            water_hits[players[1]] = _maps[1];
+            ship_hits[players[0]] = _maps[2];
+            ship_hits[players[1]] = _maps[3];
+            player_balance[players[0]] = _maps[4];
+            player_balance[players[1]] = _maps[5];
+            bets[players[0]] = _maps[6];
+            bets[players[1]] = _maps[7];
+            
+            // Store ships! 
+            for(uint i=0; i<sizes.length*2; i++) {
+                
+                if(i < sizes.length) {
+                    ships[players[0]][i] = Ship({hash: _shiphash[i], k: sizes[i % sizes.length], x1: _x1[i], y1: _y1[i], x2: _x2[i], y2: _y2[i], sunk: _sunk[i]});
+                } else {
+                    ships[players[1]][i] = Ship({hash: _shiphash[i], k: sizes[i % sizes.length], x1: _x1[i], y1: _y1[i], x2: _x2[i], y2: _y2[i], sunk: _sunk[i]});
+                }
+                
+            }
+        }
+    }
+    
+    // Only required in the PRIVATE contract. Not required in the public / ethereum contract. 
+    function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[] _shiphash, uint8[] _x1, uint8[] _y1, uint8[] _x2, uint8[] _y2, bool[] _sunk, bytes32 _h) {
+            
+        // Store the "_ready" variables 
+        _bool[0] = playerShipsReceived[0]; 
+        _bool[1] = playerShipsReceived[1];
+        _bool[2] = playerReady[0];
+        _bool[3] = playerReady[1];
+        _bool[4] = cheated[players[0]];
+        _bool[5] = cheated[players[1]];
+            
+        // Store the "individual uints" 
+        _uints8[0] = x;
+        _uints8[1] = y;
+        _uints[0] = round; 
+        _uints[1] = move_ctr;
+        _uints[2] = totalShipPositions;
+        _uints[3] = turn;
+        _uints[4] = uint(phase);
+        _uints[5] = challengeTime; 
+        _uints[6] = r;
+            
+        // Store Winner
+        _winner = winner;
+            
+        // Store mappings
+        _maps[0] = water_hits[players[0]];
+        _maps[1] = water_hits[players[1]];
+        _maps[2] = ship_hits[players[0]];
+        _maps[3] = ship_hits[players[1]];
+        _maps[4] = player_balance[players[0]];
+        _maps[5] = player_balance[players[1]];
+        _maps[6] = bets[players[0]];
+        _maps[7] = bets[players[1]];
+            
+        // Store ships! 
+        for(uint i=0; i<sizes.length*2; i++) {
+                
+            address toUpdate; 
+                
+            if(i < sizes.length) {
+                toUpdate = players[0];
+            } else {
+                toUpdate = players[1];
+            }
+                
+
         }
         
+        // Compute state hash - that will need to be signed! 
+        _h = sha256(_bool, _uints8, _uints, _winner, _maps, address(this));
+        _h = sha256(_h, _shiphash, _x1, _y1, _x2, _y2, _sunk); 
     }
     
     /* Expected Template Variables:
@@ -137,7 +229,7 @@ contract BattleShipWithoutBoard {
      * GameOver - Winner can collect their winnings. Deletes all data structures and transitions to SETUP. 
      * Note: If only one party is caught cheating - counterparty gets full bet. If both players cheated, winnings is burnt. 
      */
-    enum GamePhase { Setup, Attack, Reveal, Win, Fraud, GameOver, Reset } 
+    enum GamePhase { Setup, Attack, Reveal, Win, Fraud, GameOver } 
     GamePhase public phase;
     
     struct Ship {
@@ -154,6 +246,7 @@ contract BattleShipWithoutBoard {
         bool sunk;
     }
     
+    uint8[5] sizes = [5,4,3,3,2];
     address[] public players;
     address public winner;
     address public charity; // if both players cheat; we get coins.
@@ -163,7 +256,6 @@ contract BattleShipWithoutBoard {
     mapping (address => Ship[6]) ships; 
     uint totalShipPositions; // Set in "checkShipList"
     bool[2] playerShipsReceived; 
-    
     
     // Number of games played 
     bool[2] playerReady;
@@ -176,13 +268,6 @@ contract BattleShipWithoutBoard {
     mapping (address => uint) player_balance;
     mapping (address => uint) bets; 
     mapping (address => bool) cheated; 
-    
-    // TODO: Implement an individual "countdown" for each player. 
-    // i.e. they have an absolute time of 100 minutes to finish the game. 
-    // we simply "decrement" how long it takes them to take each move. 
-    // If they go over their limit; too bad. Similar to playing chess, set an upper bound on game. 
-    // Also work out; "countdown" for each player vs just using challenge periods. What is more safe? 
-    // With "countdown" we can just not decrement it
     
     // Whose turn is it? And when do they need to respond by? 
     uint public turn; // The "attacker" i.e. whoever takes a shot. 
@@ -198,15 +283,15 @@ contract BattleShipWithoutBoard {
         _;
     }
     
-    
     // Function can only be called in this state 
     modifier onlyState(GamePhase p) {
         require(phase == p);
         _;
     }
     
+    event RevealAttack(address indexed player, uint8 x, uint8 y, uint move_ctr, uint round, bytes signature); 
     event RevealHit(address indexed player, uint8 x, uint8 y, bool hit, uint move_ctr, uint round, bytes signature);
-    event RevealSunk(address indexed player, uint8 x, uint8 y, bool hit, uint move_ctr, uint round, bytes signature);
+    event RevealSunk(address indexed player, uint shipindex, uint8 x1, uint8 y1, uint8 x2, uint8 y2, uint _r, uint move_ctr, uint round, bytes signature);
     
     // Set up the battleship contract.
     // - Address of both parties
@@ -222,14 +307,13 @@ contract BattleShipWithoutBoard {
     
     // Parties can deposit coins during the SETUP phase. 
     // Function MUST BE DISABLED if this contract is deployed via a private network
-    function deposit() public onlyState(GamePhase.Setup) onlyPlayers disabledInPrivateNetwork disableForStateChannel payable {
+    function deposit() public onlyState(GamePhase.Setup) onlyPlayers disableForPrivateNetwork disableForStateChannel payable {
         player_balance[msg.sender] += msg.value; 
     }
     
     // Parties can deposit coins during the SETUP phase. 
     // Function MUST BE DISABLED if this contract is deployed via a private network
-    function withdraw(uint toWithdraw) public onlyPlayers disabledInPrivateNetwork disableForStateChannel payable {
-        
+    function withdraw(uint toWithdraw) public onlyPlayers disableForPrivateNetwork disableForStateChannel payable {
         require(toWithdraw <= player_balance[msg.sender]);
 
         // Update state to reflect withdrawal 
@@ -317,7 +401,7 @@ contract BattleShipWithoutBoard {
         bets[players[1]] = 0;
         
         // Entire game must be reset. 
-        phase = GamePhase.Reset;
+        reset();
     }
     
     // Player picks a slot position to attack. 
@@ -336,7 +420,10 @@ contract BattleShipWithoutBoard {
             // Store attack co-ordinates 
             x = _x;
             y = _y;
-                
+            
+            // Publish to make it easy to fetch signed message 
+            emit RevealAttack(players[turn], _x, _y, move_ctr, round, _signature); 
+            
             // Transition to reveal phase 
             changeGamePlayPhase(); 
         }
@@ -348,9 +435,7 @@ contract BattleShipWithoutBoard {
         // Who is the counterparty? 
         uint counterparty = (turn + 1) % 2; 
         
-        // We require an EXPLICIT signature - to be used by fraud proof
-        // Because this must be signed by counterparty - caller of this function doesn't matter. 
-        // Slot, water/ship, counterparty address, move ctr (incremented every phase change in contract), round, this contract address
+        // We require an explicit signature for later use by a fraud proof
         bytes32 sighash = sha256(x,y,_b,players[counterparty], move_ctr, round, address(this));
         require(recover(sighash, _signature) == players[counterparty]);
  
@@ -388,9 +473,7 @@ contract BattleShipWithoutBoard {
         // Who is the counterparty? 
         uint counterparty = (turn + 1) % 2; 
         
-        // We require an EXPLICIT signature to be used by fraud proof
-        // Again, because this is signed by counterparty, caller of function doesn't matter. 
-        // location1,location2,nonce,counterparty address, ship index, move counter, round, contract address 
+        // We require an explicit signature for later use by a fraud proof
         bytes32 sighash = sha256(_x1,_y1,_x2,_y2,_r,_shipindex,move_ctr,round, address(this));
         require(recover(sighash, _signature) == players[counterparty]);
         
@@ -402,10 +485,7 @@ contract BattleShipWithoutBoard {
             return; 
         }
         
-        // Recording that a ship location was hit 
-        ship_hits[players[turn]] += 1;
-            
-        // Sanity check number of shots 
+        // Player has hit more ships than expected 
         if(ship_hits[players[turn]] >= totalShipPositions) {
             fraudDetected(counterparty);
             return;
@@ -420,6 +500,12 @@ contract BattleShipWithoutBoard {
             return; 
         }
         
+        // Record that a ship location was hit 
+        ship_hits[players[turn]] += 1;
+        
+        // Emit sunk ship. (Easy fetching)
+        emit RevealSunk(players[counterparty], _shipindex, _x1, _y1, _x2, _y2, _r, move_ctr, round, _signature);
+            
         // Check if all ships are now sunk (and if so, finish the game)! 
         if(sankAllShips(players[counterparty])) { 
             return; 
@@ -432,7 +518,7 @@ contract BattleShipWithoutBoard {
     
     // Check whether all ships for a given player have been sank! 
     // Solidity rant: Should be in revealsunk(), but forced to create a new function due to callstack issues. 
-    function sankAllShips(address player) internal disableForStateChannel returns (bool)  {
+    function sankAllShips(address player) internal returns (bool)  {
         require(phase == GamePhase.Attack || phase == GamePhase.Reveal); 
         
         // Check if all ships are sunk 
@@ -480,20 +566,16 @@ contract BattleShipWithoutBoard {
         }
     }
 
-    
     // Sanity check the claimed size of all ships 
     function checkShipList(uint8[] _size, bytes32[] _ships) internal {
         
         // We are expecting six ships 
-        require(_size.length == 6);
-        require(_ships.length == 6);
+        require(_size.length == sizes.length && sizes.length == _ships.length );
         
         // Battleship sizes from https://www.thesprucecrafts.com/the-basic-rules-of-battleship-411069
-        require(_size[0] == 5); // Carrier 
-        require(_size[1] == 4); // Battleship 
-        require(_size[2] == 3); // Cruiser
-        require(_size[3] == 3); // Submarine 
-        require(_size[4] == 2); // Destoryer 
+        for(uint i=0; i<sizes.length; i++) {
+            require(_size[i] == sizes[i]);
+        }
         
         // Total ship positions for each player 
         totalShipPositions = _size[0] + _size[1] + _size[2]  + _size[3] + _size[4];
@@ -542,7 +624,7 @@ contract BattleShipWithoutBoard {
         // Should be on the 10x10 Grid. 
         // We count from 0,...,9
         if(_x < 0 || _x >= 10) { return false; }
-        if(_y < 0 && _y >= 10) { return false; }
+        if(_y < 0 || _y >= 10) { return false; }
         
         return true; 
     }
@@ -570,7 +652,8 @@ contract BattleShipWithoutBoard {
     
     // Check whether a list of points are indeed in a straight line 
     function checkLine(uint8 _x1, uint8 _y1, uint8 _x2, uint _y2, uint8 k) internal pure returns (bool) {
-                // Confirm if it is in a straight line or not. 
+        
+        // Confirm if it is in a straight line or not. 
         bool line = false;
             
         // Is this ship veritcal? 
@@ -624,7 +707,6 @@ contract BattleShipWithoutBoard {
         
         // We are expecting ALL ship openings! 
         // If a "ship" was already sunk, it can be filled with 0,0,0,0,0. 
-        // TODO: This could be optimised, but not fully necessary. Simple is better. 
         require(_x1.length == ships[winner].length && _y1.length == ships[winner].length && 
                 _x2.length == ships[winner].length && _y2.length == ships[winner].length && 
                 _r.length == ships[winner].length);
@@ -637,8 +719,6 @@ contract BattleShipWithoutBoard {
                 
                 // Sanity check ships... 
                 if(!checkShipQuality(_x1[i], _y1[i], _x2[i], _y2[i], _r[i], i, winner)) {
-             
-                    //TODO: What if the quality doesn't check out? then we need to end the game... 
                     cheated[winner] = true;
                     phase = GamePhase.GameOver;
                     return; 
@@ -668,10 +748,7 @@ contract BattleShipWithoutBoard {
     }
     
     // Both players cheated. Forfeit their bets (or do something here). 
-    function gameOver() internal onlyPlayers disableForStateChannel onlyState(GamePhase.GameOver) {
-        
-        // Ready to reset the game 
-        phase = GamePhase.Reset; 
+    function gameOver() internal onlyState(GamePhase.GameOver) {
         
         // Sort of the "winnings" 
         uint winnings = bets[players[0]] + bets[players[1]]; 
@@ -695,7 +772,50 @@ contract BattleShipWithoutBoard {
         } else {
             player_balance[players[0]] = player_balance[players[0]] + winnings; 
         }
+        
+        // Reset entire game 
+        reset();
     
+    }
+    
+    // Two ships claim to be at the same location. 
+    function fraudShipsSameCell(uint _shipindex1, uint _shipindex2, uint8 _x, uint8 _y) public onlyPlayers disableForStateChannel {
+        require(phase == GamePhase.Attack || phase == GamePhase.Reveal || phase == GamePhase.Fraud);
+        
+        // Who is the caller and the counterparty? 
+        address counterparty; 
+        if(msg.sender == players[0]) {
+            counterparty = players[1];
+        } else {
+            counterparty = players[0];
+        }
+        
+        // Check that both ships have been stored! 
+        require(ships[counterparty][_shipindex1].x1 > 0 || ships[counterparty][_shipindex1].y1 > 0 || 
+                ships[counterparty][_shipindex1].x2 > 0 || ships[counterparty][_shipindex1].x2 > 0);
+        require(ships[counterparty][_shipindex2].x1 > 0 || ships[counterparty][_shipindex2].y1 > 0 || 
+                ships[counterparty][_shipindex2].x2 > 0 || ships[counterparty][_shipindex2].x2 > 0);
+                
+        // Check that _x and _y is indeed a cell for ship1 
+        require(checkAttackSlot(_x, _y, ships[counterparty][_shipindex1].x1, ships[counterparty][_shipindex1].y1, 
+                                        ships[counterparty][_shipindex1].x2, ships[counterparty][_shipindex1].y2));
+        // Check that _x and _y is indeed a cell for ship2
+        require(checkAttackSlot(_x, _y, ships[counterparty][_shipindex2].x1, ships[counterparty][_shipindex2].y1, 
+                                        ships[counterparty][_shipindex2].x2, ships[counterparty][_shipindex2].y2));
+        
+        cheated[counterparty] = true; 
+        
+        if(phase == GamePhase.Attack || phase == GamePhase.Reveal) {
+            winner = msg.sender; 
+            phase = GamePhase.Win;
+            challengeTime = now + timer_challenge; // Winner has a fixed time period to open ships 
+            
+        } else {
+            
+            // Must be the "Fraud" phase... lets go into "gameover" mode. 
+            gameOver(); 
+        }
+        
     }
     
     // A player has tried to take the same shot twice. This should not be allowed. 
@@ -881,12 +1001,26 @@ contract BattleShipWithoutBoard {
   
     }
     
-    // Reset and destory all variables in this game. Start afresh (do not delete balance!)
-    function reset() public onlyPlayers onlyState(GamePhase.Reset) {
-        // TODO: NOT COMPLETED.
-        
-        // Increment round. 
+    // Reset and destory all variables in this game.
+    function reset() internal {
+        delete winner;
+        delete ships[players[0]]; 
+        delete ships[players[1]]; 
+        delete totalShipPositions;
+        delete playerShipsReceived;
+        delete playerReady;
+        delete move_ctr;
+        delete water_hits[players[0]];
+        delete water_hits[players[1]];
+        delete ship_hits[players[0]];
+        delete ship_hits[players[1]];
+        delete cheated[players[0]];
+        delete cheated[players[1]]; 
+        delete turn;
+        delete x;
+        delete y; 
         round = round + 1; 
+        phase = GamePhase.Setup; 
     }
     
   
