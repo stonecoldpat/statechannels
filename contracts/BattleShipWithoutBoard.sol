@@ -56,7 +56,7 @@ contract BattleShipWithoutBoard {
     // Attach to all functions in the contract "with side-effects" 
     // This should disable all functionality if this contract is deployed via private network. 
     modifier disableForPrivateNetwork() {
-        require(!notprivatenetwork);
+        require(!privatenetwork);
         _;
     }
     
@@ -313,13 +313,7 @@ contract BattleShipWithoutBoard {
     
     // Parties can deposit coins during the SETUP phase. 
     // Function MUST BE DISABLED if this contract is deployed via a private network
-    function deposit() public 
-        onlyState(GamePhase.Setup) 
-        onlyPlayers 
-        disableForPrivateNetwork
-        // disableForStateChannel 
-        payable {
-        return;
+    function deposit() public onlyState(GamePhase.Setup) onlyPlayers disableForPrivateNetwork disableForStateChannel payable {
         player_balance[msg.sender] += msg.value; 
     }
     
