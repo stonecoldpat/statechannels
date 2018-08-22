@@ -40,7 +40,7 @@ contract BattleShipWithoutBoard {
     StateChannel stateChannel;
     StateChannelFactory stateChannelFactory; // TODO: Hard-code an address. Only one must exist. 
     
-    bool notprivatenetwork = false; // If this contract is deployed via a private network to simulate execution. Set this to true. Compiler can set it. 
+    bool privatenetwork = false; // If this contract is deployed via a private network to simulate execution. Set this to true. Compiler can set it. 
     bool statechannelon = false; // "false" if state channel contract is not instantiated, and "true" if instantiated.  
     uint disputetime; // fixed time for the dispute process 
     uint extratime; // We need to "add time" to any timer to take into account dispute process (triggering + resolving). 
@@ -56,7 +56,7 @@ contract BattleShipWithoutBoard {
     // Attach to all functions in the contract "with side-effects" 
     // This should disable all functionality if this contract is deployed via private network. 
     modifier disableForPrivateNetwork() {
-        require(notprivatenetwork);
+        require(!notprivatenetwork);
         _;
     }
     
@@ -313,7 +313,13 @@ contract BattleShipWithoutBoard {
     
     // Parties can deposit coins during the SETUP phase. 
     // Function MUST BE DISABLED if this contract is deployed via a private network
-    function deposit() public onlyState(GamePhase.Setup) onlyPlayers disableForPrivateNetwork disableForStateChannel payable {
+    function deposit() public 
+        onlyState(GamePhase.Setup) 
+        onlyPlayers 
+        disableForPrivateNetwork
+        // disableForStateChannel 
+        payable {
+        return;
         player_balance[msg.sender] += msg.value; 
     }
     

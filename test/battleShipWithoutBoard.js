@@ -13,21 +13,39 @@ contract("BattleShips", function(accounts) {
     const player1 = accounts[1];
     const timerChallenge = 20;
 
-    before(async () => {
-        console.log("hello");
-        // statechannel = await StateChannel.new([player1, player2], 20)
-        // battleship = await BattleShips.new(player1, player2, '0x0')
-        // battleship2 = await BattleShips.new(player1, player2, statechannel.address)
+    // before(async () => {
+    //     // console.log("hello");
+    //     // statechannel = await StateChannel.new([player1, player2], 20)
+    //     // battleship = await BattleShips.new(player1, player2, '0x0')
+    //     // battleship2 = await BattleShips.new(player1, player2, statechannel.address)
 
-    });
+    // });
 
     it("test deposit", async () => {
         const BattleShipGame = await BattleShipWithoutBoard.new(player0, player1, timerChallenge);
 
-        let deposit = await BattleShipGame.deposit({from: player0, gas: 300000, value: web3.toWei(0.1, "ether") })
+        // let phase = await BattleShipGame.phase();
+        // console.log(phase);
+
+        console.log(player0, player1)
+        let p0 = await BattleShipGame.players(0)
+        let p1 = await BattleShipGame.players(1)
+        console.log(p0, p1)
+
+         let deposit = await BattleShipGame.deposit({from: player0, gas: 300000 })
+        
     })
 
+
     // constructor sets correct properties
+    
+    // deposit correctly increments the balance of player and of contract
+    // deposit does not accept other players
+    // deposit does not work off chain
+    // deposit is disabled by state channel
+    // deposit only available during setup phase
+
+
 
     // order
     // 1. constructor
