@@ -304,8 +304,8 @@ contract BattleShipWithoutBoard {
     // - Challenge timer i.e. parties must respond with their choice within a time period 
     // - Dispute timer i.e. used in the state channel 
     constructor (address _player0, address _player1, uint _timer_challenge) public {
-        players[0] = _player0;
-        players[1] = _player1;
+        players.push(_player0);
+        players.push(_player1);
         phase = GamePhase.Setup;
         timer_challenge = _timer_challenge;
     
