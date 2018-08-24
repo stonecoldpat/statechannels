@@ -778,7 +778,6 @@ contract BattleShipWithoutBoard {
         if(winner == players[0]) {
              player_balance[players[1]] = player_balance[players[1]] + winnings; 
         } else {
-            // this causes 
             player_balance[players[0]] = player_balance[players[0]] + winnings; 
         }
         
