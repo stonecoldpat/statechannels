@@ -234,7 +234,7 @@ contract BattleShipWithoutBoard {
      * FRAUD - Non-winner has a fixed time period to prove fraud based on signed messages received during game + winner's ship openings. 
      * Note: If only one party is caught cheating - counterparty gets full bet. If both players cheated, winnings is burnt. 
      */
-    enum GamePhase { Setup, Attack, Reveal, Win, Fraud} 
+    enum GamePhase { Setup, Attack, Reveal, Win, Fraud } 
     GamePhase public phase;
     
     struct Ship {
@@ -440,7 +440,7 @@ contract BattleShipWithoutBoard {
         uint counterparty = (turn + 1) % 2; 
         
         // We require an explicit signature for later use by a fraud proof
-        bytes32 sighash = keccak256(abi.encodePacked(x,y,_b,players[counterparty], move_ctr, round, address(this)));
+        bytes32 sighash = keccak256(abi.encodePacked(x,y,_b, move_ctr, round, address(this)));
         require(recoverEthereumSignedMessage(sighash, _signature) == players[counterparty]);
  
         // Hit a ship or water? 
@@ -469,7 +469,6 @@ contract BattleShipWithoutBoard {
         // Game not finished... 
         changeGamePlayPhase();
     }
-    
         
     // Counterparty reveals slot + that a ship was sunk. 
     function revealsunk(uint _shipindex, uint8 _x1, uint8 _y1, uint8 _x2, uint8 _y2, uint _r, bytes _signature) public disableForStateChannel onlyState(GamePhase.Reveal) {
@@ -496,8 +495,7 @@ contract BattleShipWithoutBoard {
         }
         
         // Is this ship actually on the attacked slot? 
-        if(!checkAttackSlot(x,y, _x1, _y1, _x2, _y2)) { 
-            
+        if(!checkAttackSlot(x,y, _x1, _y1, _x2, _y2)) {
             // Ship is not on this attack slot, but signed by counterparty
             // for this move. Considered cheating. 
             fraudDetected(counterparty);
@@ -507,8 +505,12 @@ contract BattleShipWithoutBoard {
         // Record that a ship location was hit 
         ship_hits[players[turn]] += 1;
 
-        // and record that it was sunk
+        // record that it was sunk, and fill in it's coordinates
         ships[players[counterparty]][_shipindex].sunk = true;
+        ships[players[counterparty]][_shipindex].x1 = _x1;
+        ships[players[counterparty]][_shipindex].y1 = _y1;
+        ships[players[counterparty]][_shipindex].x2 = _x2;
+        ships[players[counterparty]][_shipindex].y2 = _y2;
         
         // Emit sunk ship. (Easy fetching)
         emit RevealSunk(players[counterparty], _shipindex, _x1, _y1, _x2, _y2, _r, move_ctr, round, _signature);
@@ -519,7 +521,6 @@ contract BattleShipWithoutBoard {
         } else { // Time to finish the game 
             changeGamePlayPhase();
         }
-       
     }
     
     
@@ -544,7 +545,7 @@ contract BattleShipWithoutBoard {
     
     // Internal function to transition game phase after a move. 
     function changeGamePlayPhase() internal {
-
+        require(phase == GamePhase.Attack || phase == GamePhase.Reveal);
         // Set a new challenge time
         // TODO: "now" relies on "block.timestamp" - problems in state channel and private network will occur
         challengeTime = now + timer_challenge; 
@@ -552,9 +553,10 @@ contract BattleShipWithoutBoard {
         
         // Attacker always sign an even number "0,2,4"
         // Opener always signers an odd number "1,3,5"
-        // Final possible move is "199" as this will open the final slot. 
-        // This function increments to 200 - which we should never reach (as that would allow 201 moves). 
-        if(move_ctr == 200) {
+        // There are 100 squares on a board, and two boards, each one takes 2 moves to open giving a possible
+        // maximum of 400 moves, the last one being an open on 399. This function increments to 400
+        // - which we should never reach (as that would allow 399 moves). 
+        if(move_ctr == 400) {
             
             phase = GamePhase.Win;
             winner = players[turn];
@@ -648,7 +650,7 @@ contract BattleShipWithoutBoard {
         } else {
             return false; 
         }
-        
+
         // Is this ship within the board?
         // Throws if not valid 
         if(!checkValidSlot(_x1, _y1)) { return false; }
@@ -656,22 +658,21 @@ contract BattleShipWithoutBoard {
         
         return checkLine(_x1, _y1, _x2, _y2, k);
     }
-    
+
     // Check whether a list of points are indeed in a straight line 
-    function checkLine(uint8 _x1, uint8 _y1, uint8 _x2, uint _y2, uint8 k) internal pure returns (bool) {
+    function checkLine(uint8 _x1, uint8 _y1, uint8 _x2, uint8 _y2, uint8 k) internal pure returns (bool) {
         
         // Confirm if it is in a straight line or not. 
         bool line = false;
             
         // Is this ship veritcal? 
-        if(_x1 == _x2) { 
-            
+        if(_x1 == _x2) {
              // Vertical ships must always increment (0 top 9 bottom)
              // So we'd expect _y1 near top of board, and _y2 near bottom of board. 
             if(_y2 > _y1) {
-                
                 // OK it should be exactly k slots in length
                 if(1 +_y2 - _y1 == k) {
+                    
                     line = true;
                 }
             }
@@ -679,10 +680,8 @@ contract BattleShipWithoutBoard {
         
         //Is this ship horizontal? 
         if(_y1 == _y2) {
-         
             // Horizontal ships must always increment (0 left, 9 right)
             if(_x2 > _x1) {
-             
                 // OK it should be exactly k slots in length
                 if(1 +_x2 - _x1 == k) {
                     line = true;
@@ -797,13 +796,13 @@ contract BattleShipWithoutBoard {
         } else {
             counterparty = players[0];
         }
-        
+
         // Check that both ships have been stored! 
         require(ships[counterparty][_shipindex1].x1 > 0 || ships[counterparty][_shipindex1].y1 > 0 || 
-                ships[counterparty][_shipindex1].x2 > 0 || ships[counterparty][_shipindex1].x2 > 0);
+                ships[counterparty][_shipindex1].x2 > 0 || ships[counterparty][_shipindex1].y2 > 0);
         require(ships[counterparty][_shipindex2].x1 > 0 || ships[counterparty][_shipindex2].y1 > 0 || 
-                ships[counterparty][_shipindex2].x2 > 0 || ships[counterparty][_shipindex2].x2 > 0);
-                
+                ships[counterparty][_shipindex2].x2 > 0 || ships[counterparty][_shipindex2].y2 > 0);
+        
         // Check that _x and _y is indeed a cell for ship1 
         require(checkAttackSlot(_x, _y, ships[counterparty][_shipindex1].x1, ships[counterparty][_shipindex1].y1, 
                                         ships[counterparty][_shipindex1].x2, ships[counterparty][_shipindex1].y2));
@@ -924,8 +923,8 @@ contract BattleShipWithoutBoard {
         // Check the ship was stored in the contract 
         // One position must be greater than 0....
         require(ships[counterparty][_shipindex].x1 > 0 || ships[counterparty][_shipindex].y1 > 0 || 
-                ships[counterparty][_shipindex].x2 > 0 || ships[counterparty][_shipindex].x2 > 0);
-                
+                ships[counterparty][_shipindex].x2 > 0 || ships[counterparty][_shipindex].y2 > 0);
+        
         // If this represents a valid attack slot... lets see what counterparty signed. 
         bool valid = checkAttackSlot(_x,_y,ships[counterparty][_shipindex].x1, ships[counterparty][_shipindex].y1, 
                                            ships[counterparty][_shipindex].x2, ships[counterparty][_shipindex].y2);
@@ -935,7 +934,7 @@ contract BattleShipWithoutBoard {
             
             // Lets finally check if the counterparty marked this slot as water during the game 
             bytes32 sighash = keccak256(abi.encodePacked(_x,_y,false, _move_ctr, round, address(this)));
-            require(recover(sighash, _signature) == counterparty);
+            require(recoverEthereumSignedMessage(sighash, _signature) == counterparty);
             
             // Yup! Winner cheated! 
             cheated[counterparty] = true;
