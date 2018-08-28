@@ -959,7 +959,7 @@ contract BattleShipWithoutBoard {
         // In both cases; the ship opening must be in the contract 
         require(phase == GamePhase.Fraud);
         require(msg.sender != winner); 
-
+        
         
         // Confirm this is a real ship identifier
         require(_shipindex < ships[winner].length);

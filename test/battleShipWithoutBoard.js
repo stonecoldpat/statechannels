@@ -2,6 +2,7 @@ const BattleShipWithoutBoard = artifacts.require("./BattleShipWithoutBoard.sol")
 const Web3Util = require("web3-utils");
 const Web3 = require("web3");
 const web32 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
+const { createGasProxy, logGasLib } = require("./gasProxy");
 
 // ganache-cli -d -l 15000000 --allowUnlimitedContractSize
 
@@ -171,8 +172,9 @@ const playerReady = async (contract, player, expectedPhase) => {
 };
 
 const attack = async (contract, player, x, y) => {
-    console.log(`\t${player} attack (${x}, ${y})`);
     let moveCtr = await contract.move_ctr();
+    console.log(`\t${player} move ${moveCtr} attack (${x}, ${y})`);
+
     let round = await contract.round();
 
     const attackHash = Web3Util.soliditySha3(
@@ -190,8 +192,8 @@ const attack = async (contract, player, x, y) => {
 };
 
 const reveal = async (contract, player, x, y, hit) => {
-    console.log(`\t${player} reveal (${x}, ${y}) as ${hit ? "hit" : "miss"}`);
     let moveCtr = await contract.move_ctr();
+    console.log(`\t${player} move ${moveCtr} reveal (${x}, ${y}) as ${hit ? "hit" : "miss"}`);
     let round = await contract.round();
     let turnBefore = await contract.turn();
 
@@ -216,8 +218,8 @@ const reveal = async (contract, player, x, y, hit) => {
 };
 
 const revealSunk = async (contract, player, shipIndex, x1, y1, x2, y2, r, isWin) => {
-    console.log(`\t${player} reveal sunk at (${x}, ${y})`);
     let moveCtr = await contract.move_ctr();
+    console.log(`\t${player} move ${moveCtr} reveal sunk at (${x}, ${y})`);
     let round = await contract.round();
     let turnBefore = await contract.turn();
 
@@ -253,15 +255,19 @@ const recordHitAndTestForSink = (shipId, ships) => {
 };
 
 const testForHitAndReveal = async (contract, player, board, x, y, ships, currentSinks, overrides) => {
-    const hit = overrides ? overrides.hit : board[x][y];
+    const hit = overrides && overrides.hitSupplied ? overrides.hit : board[x][y];
     if (hit === 0) {
         // miss, reveal it
         const sig = await reveal(contract, player, x, y, false);
         return sig;
     } else {
         const indexAndId = recordHitAndTestForSink(hit, ships);
+        let sink;
+        if (overrides && overrides.sunkSupplied) {
+            sink = overrides.sunk;
+        } else sink = indexAndId;
 
-        if (indexAndId) {
+        if (sink) {
             // sunk, reveal it
             const ship = ships[indexAndId.shipIndex];
             await revealSunk(
@@ -330,7 +336,7 @@ const withdraw = async (contract, player, amount) => {
     const playerBalanceAfter = await contract.player_balance(player);
     const contractBalanceAfter = await web32.eth.getBalance(contract.address);
 
-    assert.equal(playerBalanceBefore.toNumber() - playerBalanceAfter.toNumber(), amount);
+    assert.equal(playerBalanceBefore - playerBalanceAfter, amount);
     assert.equal(contractBalanceBefore - contractBalanceAfter, amount);
 };
 
@@ -395,7 +401,38 @@ const setupGame = async (contract, player0, player1, boardBuilder0, boardBuilder
     return { player0: player0Ships, player1: player1Ships };
 };
 
-const playThrough5x5 = async (contract, player0, player1, gameState, neverRevealPlayer0) => {
+const attackAndReveal = async (
+    contract,
+    attackPlayer,
+    attackPlayerCurrentSinks,
+    x,
+    y,
+    revealPlayer,
+    revealPlayerBoard,
+    revealPlayerShips,
+    overrides
+) => {
+    await attack(contract, attackPlayer, x, y);
+    let attackMoveCtr = await contract.move_ctr();
+    let revealSink = await testForHitAndReveal(
+        contract,
+        revealPlayer,
+        revealPlayerBoard,
+        x,
+        y,
+        revealPlayerShips,
+        attackPlayerCurrentSinks,
+        (overrides.hitSupplied || overrides.sinkSupplied) && overrides
+    );
+    if (revealSink === "sink") {
+        return { sink: true };
+    } else {
+        assert.equal(attackMoveCtr.toNumber(), revealSink.moveCtr.toNumber());
+        return revealSink;
+    }
+};
+
+const playThrough5x5 = async (contract, player0, player1, gameState, neverRevealPlayer0, neverSinkPlayer0) => {
     console.log("\t// PLAY //");
     let player0Sinks = 0;
     let player1Sinks = 0;
@@ -404,44 +441,45 @@ const playThrough5x5 = async (contract, player0, player1, gameState, neverReveal
 
     for (x = 0; x < 5; x++) {
         for (y = 0; y < 5; y++) {
-            await attack(contract, player0, x, y);
-            let player0moveCtr = await contract.move_ctr();
-            let player0Sink = await testForHitAndReveal(
+            let player0Move = await attackAndReveal(
                 contract,
-                player1,
-                gameState.player1.board,
+                player0,
+                player0Sinks,
                 x,
                 y,
+                player1,
+                gameState.player1.board,
                 gameState.player1.ships,
-                player0Sinks
+                {}
             );
-            if (player0Sink === "sink") player0Sinks++;
-            else { 
-                assert.equal(player0moveCtr.toNumber(), player0Sink.moveCtr.toNumber())
-                reveals[player0moveCtr.toNumber()]= player0Sink; 
+            if (player0Move.sink) player0Sinks++;
+            else {
+                reveals[player0Move.moveCtr] = player0Move;
             }
             if (player0Sinks === 5) {
                 winner = player0;
                 break;
             }
 
+            let player0Overrides = {};
+            if (neverRevealPlayer0) player0Overrides = { ...player0Overrides, ...{ hit: 0, hitSupplied: true } };
+            if (neverSinkPlayer0) player0Overrides = { ...player0Overrides, ...{ sunk: false, sunkSupplied: true } };
+
             // now switch over and reveal the other player
-            await attack(contract, player1, x, y);
-            let player1moveCtr = await contract.move_ctr();
-            let player1Sink = await testForHitAndReveal(
+            let player1Move = await attackAndReveal(
                 contract,
-                player0,
-                gameState.player0.board,
+                player1,
+                player1Sinks,
                 x,
                 y,
+                player0,
+                gameState.player0.board,
                 gameState.player0.ships,
-                player1Sinks,
-                neverRevealPlayer0 && { hit: 0 }
+                player0Overrides
             );
-            if (player1Sink === "sink") player1Sinks++;
+            if (player1Move.sink) player1Sinks++;
             else {
-                assert.equal(player1moveCtr.toNumber(), player1Sink.moveCtr.toNumber())
-                reveals[player1moveCtr.toNumber()]= player1Sink; 
+                reveals[player1Move.moveCtr] = player1Move;
             }
             if (player1Sinks === 5) {
                 winner = player1;
@@ -457,10 +495,13 @@ const playThrough5x5 = async (contract, player0, player1, gameState, neverReveal
 contract("BattleShips", function(accounts) {
     const player0 = accounts[0];
     const player1 = accounts[1];
+    const gasLibs = [];
 
     it("simple end to end", async () => {
         console.log("\tconstruct");
-        const BattleShipGame = await BattleShipWithoutBoard.new(player0, player1, timerChallenge);
+        const gasLib = [];
+        const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
+        const BattleShipGame = await BattleShipGamePre.new(player0, player1, timerChallenge);
 
         // setup with basic boards
         let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
@@ -479,11 +520,17 @@ contract("BattleShips", function(accounts) {
         await withdraw(BattleShipGame, winner, depositValue);
 
         console.log("\t// FINALISE //");
+        gasLibs.push({ test: "end-to-end", gasLib });
     });
 
     it("simple test fraud ships same cell", async () => {
         console.log("\tconstruct");
-        const BattleShipGame = await BattleShipWithoutBoard.new(player0, player1, timerChallenge);
+        const gasLib = [];
+        const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
+            player0,
+            player1,
+            timerChallenge
+        );
 
         // player 0 puts all ships on top of each other, so player 1 will not be able to win
         // they should be able to commit a fraud proof after though
@@ -504,11 +551,72 @@ contract("BattleShips", function(accounts) {
         await withdraw(BattleShipGame, notWinner, depositValue);
 
         console.log("\t// FINALISE //");
+        gasLibs.push({ test: "fraud-ships-same-cell", gasLib });
+    });
+
+    it("simple test fraud attack same cell", async () => {
+        return;
+        console.log("\tconstruct");
+        const gasLib = [];
+        const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
+        const BattleShipGame = await BattleShipGamePre.new(player0, player1, timerChallenge);
+
+        // setup with basic boards
+        let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
+
+        let move0 = await attackAndReveal(
+            BattleShipGame,
+            player0,
+            0,
+            0,
+            0,
+            player1,
+            gameState.player1.board,
+            gameState.player1.ships,
+            {}
+        );
+        let move1 = await attackAndReveal(
+            BattleShipGame,
+            player1,
+            0,
+            0,
+            0,
+            player0,
+            gameState.player0.board,
+            gameState.player0.ships,
+            {}
+        );
+        let move2 = await attackAndReveal(
+            BattleShipGame,
+            player0,
+            0,
+            0,
+            0,
+            player1,
+            gameState.player1.board,
+            gameState.player1.ships,
+            {}
+        );
+
+        console.log("\t// FINALISE //");
+        // player 0 has no played at the same location twice, fraud
+        console.log("player 1 calls fraudAttackSameCell");
+        await fraudAttackSameCell(contract, player1, move0.moveCtr, move2.moveCtr, x, y, move0.sig, move1.sig);
+        console.log("\twinner withdraws");
+        await withdraw(BattleShipGame, player1, depositValue);
+
+        console.log("\t// FINALISE //");
+        gasLibs.push({ test: "fraud-attack-same-cell", gasLib });
     });
 
     it("simple test fraud declared not hit", async () => {
         console.log("\tconstruct");
-        const BattleShipGame = await BattleShipWithoutBoard.new(player0, player1, timerChallenge);
+        const gasLib = [];
+        const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
+            player0,
+            player1,
+            timerChallenge
+        );
 
         // player 0 puts all ships on top of each other, so player 1 will not be able to win
         // they should be able to commit a fraud proof after though
@@ -529,32 +637,53 @@ contract("BattleShips", function(accounts) {
         await withdraw(BattleShipGame, notWinner, depositValue);
 
         console.log("\t// FINALISE //");
+        gasLibs.push({ test: "fraud-declared-not-hit", gasLib });
     });
 
-    // it("simple test fraud declared not sunk", async () => {
-    //     console.log("\tconstruct");
-    //     const BattleShipGame = await BattleShipWithoutBoard.new(player0, player1, timerChallenge);
+    it("simple test fraud declared not sunk", async () => {
+        // we need web3 1.0.0-beta.36 to run this test, as we need abiencoderv2 support
+        return;
+        console.log("\tconstruct");
+        const gasLib = [];
+        const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
+            player0,
+            player1,
+            timerChallenge
+        );
 
-    //     // player 0 puts all ships on top of each other, so player 1 will not be able to win
-    //     // they should be able to commit a fraud proof after though
-    //     let gameState = await setupGame(BattleShipGame, player0, player1, constructSameCellShips, constructBasicShips);
-    //     let { winner, reveals } = await playThrough5x5(BattleShipGame, player0, player1, gameState, true);
-    //     assert.equal(winner, player0);
-    //     console.log("\t// FINALISE //");
+        // player 0 puts all ships on top of each other, so player 1 will not be able to win
+        // they should be able to commit a fraud proof after though
+        let gameState = await setupGame(BattleShipGame, player0, player1, constructSameCellShips, constructBasicShips);
+        let { winner, reveals } = await playThrough5x5(BattleShipGame, player0, player1, gameState, false, true);
 
-    //     let notWinner = winner === player0 ? player1 : player0;
-    //     console.log(`\twinner ${winner} opening ships`);
-    //     await openShips(BattleShipGame, winner, winner === player0 ? gameState.player0.ships : gameState.player1.ships);
+        assert.equal(winner, player0);
+        console.log("\t// FINALISE //");
 
-    //     console.log("\tpresent fraud at move 1");
-    //     await fraudDeclaredNotHit(BattleShipGame, notWinner, 0, 0, 0, 3, reveals[3].sig);
+        let notWinner = winner === player0 ? player1 : player0;
+        console.log(`\twinner ${winner} opening ships`);
+        await openShips(BattleShipGame, winner, winner === player0 ? gameState.player0.ships : gameState.player1.ships);
 
-    //     console.log("\tfinish game");
-    //     console.log("\twinner withdraws");
-    //     await withdraw(BattleShipGame, notWinner, depositValue);
+        console.log("\tpresent fraud at move 3, 7, 11, 15, 19");
+        let moves = [3, 7, 11, 15, 19];
 
-    //     console.log("\t// FINALISE //");
-    // });
+        await fraudDeclaredNotSunk(BattleShipGame, notWinner, 0, moves, moves.map(m => reveals[m].sig));
+        return;
+
+        console.log("\tfinish game");
+        console.log("\twinner withdraws");
+        await withdraw(BattleShipGame, notWinner, depositValue);
+
+        console.log("\t// FINALISE //");
+        gasLibs.push({ test: "fraud-declared-not-sunk", gasLib });
+    });
+    after(() => {
+        gasLibs.forEach(g => {
+            console.log();
+            console.log(g.test);
+            logGasLib(g.gasLib);
+            console.log();
+        });
+    });
 });
 
 const Phase = Object.freeze({
@@ -564,6 +693,12 @@ const Phase = Object.freeze({
     Win: 3,
     Fraud: 4
 });
+
+const fraudAttackSameCell = async (contract, player, move1, move2, x, y, move1Sig, move2Sig) => {
+    await contract.fraudAttackSameCell(move1.moveCtr, move2.moveCtr, x, y, [move1Sig, move2Sig], { from: player });
+    let phase = await contract.phase();
+    assert.equal(phase.toNumber(), Phase.Setup);
+};
 
 const fraudShipsSameCell = async (contract, player, shipIndex1, shipIndex2, x, y) => {
     await contract.fraudShipsSameCell(shipIndex1, shipIndex2, x, y, { from: player });
@@ -579,8 +714,10 @@ const fraudDeclaredNotHit = async (contract, player, shipIndex1, x, y, moveCtr, 
     assert.equal(phase.toNumber(), Phase.Setup);
 };
 
-const fraudDeclaredNotSunk = async (contract, player, shipIndex1, x, y, moveCtr, signature) => {
-    await contract.fraudDeclaredNotHit(shipIndex1, x, y, moveCtr, signature, { from: player });
+const fraudDeclaredNotSunk = async (contract, player, shipIndex, moves, signatures) => {
+    await contract.contract.methods.fraudDeclaredNotSunk(shipIndex, moves, signatures).send({ from: player });
+    // await contract.fraudDeclaredNotSunk(shipIndex, moves, signatures, { from: player, gas: 2000000 });
+    return;
     let phase = await contract.phase();
     // after fraud is declard we expect to have reset
     assert.equal(phase.toNumber(), Phase.Setup);
