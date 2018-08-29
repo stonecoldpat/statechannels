@@ -4,15 +4,6 @@ const Web3 = require("web3");
 const web32 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 const { createGasProxy, logGasLib } = require("./gasProxy");
 
-// ganache-cli -d -l 15000000 --allowUnlimitedContractSize
-
-// const Web3 = require('web3')
-// const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:8545'))
-// const abi = require('ethereumjs-abi')
-// const BigNumber = require('bignumber.js')
-// const StateChannel = artifacts.require('./StateChannel.sol')
-
-// const Commit = require('./helpers/commitments.js')
 const deposit = async (contract, player, amount, expectedContractBalance) => {
     const deposit = await contract.deposit({ from: player, value: amount });
     const balance = await contract.player_balance(player);
@@ -496,13 +487,22 @@ contract("BattleShips", function(accounts) {
     const player0 = accounts[0];
     const player1 = accounts[1];
     const gasLibs = [];
+    const config = {
+        endToEnd: true,
+        fraudShipsSameCell: false,
+        fraudAttackSameCell: false,
+        fraudDeclaredNotHit: false,
+        fraudDeclaredNotSunk: false
+    };  
 
     it("simple end to end", async () => {
+        if (!config.endToEnd) return;
+
         console.log("\tconstruct");
         const gasLib = [];
         const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
         const BattleShipGame = await BattleShipGamePre.new(player0, player1, timerChallenge);
-
+        
         // setup with basic boards
         let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
 
@@ -524,6 +524,7 @@ contract("BattleShips", function(accounts) {
     });
 
     it("simple test fraud ships same cell", async () => {
+        if (!config.fraudShipsSameCell) return;
         console.log("\tconstruct");
         const gasLib = [];
         const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
@@ -555,7 +556,7 @@ contract("BattleShips", function(accounts) {
     });
 
     it("simple test fraud attack same cell", async () => {
-        return;
+        if (!config.fraudAttackSameCell) return;
         console.log("\tconstruct");
         const gasLib = [];
         const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
@@ -610,6 +611,7 @@ contract("BattleShips", function(accounts) {
     });
 
     it("simple test fraud declared not hit", async () => {
+        if (!config.fraudDeclaredNotHit) return;
         console.log("\tconstruct");
         const gasLib = [];
         const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
@@ -642,7 +644,7 @@ contract("BattleShips", function(accounts) {
 
     it("simple test fraud declared not sunk", async () => {
         // we need web3 1.0.0-beta.36 to run this test, as we need abiencoderv2 support
-        return;
+        if (!config.fraudDeclaredNotSunk) return;
         console.log("\tconstruct");
         const gasLib = [];
         const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
