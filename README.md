@@ -65,14 +65,15 @@ To unlock the application, any player can submit the full game state to battlesh
 What are we learning?
 =========================
 
-In the ideal case, multiple battleship games can be executed off-chain between both players. It would be really fun to have the community build bots, and let the bots compete with each other. State channels offer instant finality (i.e. the moment both parties exchange signatures - it is final), and avoid transaction fees for the entire game. 
+In the ideal case, multiple battleship games can be executed off-chain between both players. State channels offer instant finality (i.e. the moment both parties exchange signatures - it is final), and avoid transaction fees for the entire game. 
 
-In the worst case, both players may agree to play the battleship game, but then one party turns off the channel. Now both players are committed to playing 200+ moves/transactions via the blockchain. 
+In the worst case, both players may agree to play the battleship game, but then one party turns off the channel. Now both players are committed to playing 200+ moves/transactions via the blockchain - which incurs considerable (and not agreed upon) financial cost. 
 
 Essentially, a state channel should only be considered an "optimistic scaling approach" as trusting every player to "co-operate" can have big implications. 
 
-
 There are other lessons such as the Funfair dilemma (i.e. the dispute process cost adds an additional and potentially deadly rypto-economic element to the game), but we'll include these in the paper which should be released this month. 
+
+As a final note, it would be really fun to have the community build bots, and let the bots compete with each other.
 
 Other Resources (Coming soon) 
 =========================
