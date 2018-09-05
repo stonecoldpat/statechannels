@@ -1,5 +1,7 @@
 # An Empirical Evaluation of State Channels 
 
+An experiment to empirically evaluate state channels as a scaling solution for cryptocurrencies. A summary of our work is below. 
+
 What is the problem?
 =========================
 
