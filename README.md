@@ -26,7 +26,9 @@ There are several ways the community are approaching "scaling":
 --> Create "processing areas" dedicated to specific transactions. One shard for hotel bookings, one for train bookings. This distributes validation as validators only verify the shard they care about. But if the validators care about multiple shards, the problem doesn't go away. 
 
 - Offchain 
---> Conceptually, the idea is to allow parties to execute transaction amongst themselves and only store the final result on the blockchain. There are two approaches which include sidechains (i.e. plasma) or state channels. The fundamental difference between both approaches is that in a sidechain, the users and the maintainers are distinct sets of people, whereas in a state channe the users ARE the maintainers. In this repo, we pursue the state channels approach. 
+--> Parties can execute transaction amongst themselves and only store the final result on the blockchain. There are two approaches which include sidechains (i.e. plasma) or state channels. The fundamental difference between both approaches is that in a sidechain, the users and the maintainers are distinct sets of people, whereas in a state channel the users ARE the maintainers. 
+
+In this repo, we pursue the state channels approach. 
 
 What is a "state" channel?
 =========================
@@ -36,7 +38,7 @@ https://binarydistrict.com/workshop/master-workshop-off-the-chain/
 
 In this repo, we propose the following definition: 
 
-A group of parties peg coins to the blockchain and agree to particiate in running an application off-chain. Every party collectively authorises the new state of an application locally amongst themselves. If one party does not co-operate, then the current state of the application can be stored on the blockchain, and its execution can be finished via the blockchain.
+A group of parties must peg coins to the blockchain and agree to participate in running an application off-chain. Every party collectively authorises the new state of an application locally amongst themselves. If one party does not co-operate, then the current state of the application can be stored on the blockchain, and its execution can be finished via the blockchain.
 
 In the above, the blockchain is only used to "resolve disputes". It guarantees safety of funds for all parties, and it also guarantees liveness as the application's execution can be finished on-chain. 
 
