@@ -49,11 +49,11 @@ In this repo, we focus on an empirical evaluation of state channels.
 
 We have built a smart contract where two players can play the game "battleship" via the blockchain. Typically, a game of battleship may require 200 transactions (in the worst case; each player hits every cell of the counterparty's board). 
 
-We demonstrate the minimal modifications required to deploy the battleship game to work in a state channel. Effectively, all players agree to "lock the application contract" via battleship.lock() so it no longer works on-chain and instantiate a "state channel contract". Both players can then execute the battleship game off-chain between each other. 
+We demonstrate the minimal modifications required to deploy the battleship game to work in a state channel. Effectively, all players agree to "lock the application contract" via battleship.lock() so it no longer works on-chain and it instantiates a "state channel contract". Both players can then execute the battleship game off-chain between each other. 
 
 For every move in the game, one player proposes a command (i.e. shoot cell A,0), and both players authorise the new state (i.e. the player has shot the cell). Every new state is associated with an "incremented" counter, and the state with the largest counter will be considered "the latest state" by the state channel contract.
 
-If one party doesn't co-operate (i.e. Bob is about to beat Alice at battleship, and she refuses to authorise the new state where she loses the game), then the other party (i.e. Bob)  trigger the dispute process. This will turn off the channel and let both players finis hthe game via the blockchain. It works as follows: 
+If one party doesn't co-operate (i.e. Bob is about to beat Alice at battleship, and she refuses to authorise the new state where she loses the game), then the other party (i.e. Bob) must trigger the dispute process. This turns off the channel and lets both players finish the game via the blockchain. It works as follows: 
 
 - One player triggers a dispute by calling SC.triggerdispute()
 - Contract enforces a "dispute time period" where both players can submit the latest "state hash" + counter .
