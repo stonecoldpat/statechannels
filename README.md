@@ -71,7 +71,7 @@ In the worst case, both players may agree to play the battleship game, but then 
 
 Essentially, a state channel should only be considered an "optimistic scaling approach" as trusting every player to "co-operate" can have big implications. 
 
-There are other lessons such as the Funfair dilemma (i.e. the dispute process cost adds an additional and potentially deadly rypto-economic element to the game), but we'll include these in the paper which should be released this month. 
+There are other lessons such as the Funfair dilemma (i.e. the dispute process cost adds an additional and potentially deadly crypto-economic element to the game), but we'll include these in the paper which should be released this month. 
 
 As a final note, it would be really fun to have the community build bots, and let the bots compete with each other.
 
