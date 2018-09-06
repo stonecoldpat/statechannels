@@ -8,8 +8,9 @@
   },
   "dependencies": {
     "console.table": "^0.10.0",
-    "web3": "^1.0.0-beta.35",
-    "web3-utils": "^1.0.0-beta.35"
+    "truffle": "^4.1.14",
+    "web3": "^1.0.0-beta.36",
+    "web3-utils": "^1.0.0-beta.36"
   },
   "devDependencies": {},
   "scripts": {

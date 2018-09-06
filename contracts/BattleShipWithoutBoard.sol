@@ -1,26 +1,28 @@
 pragma solidity ^0.4.24;
 pragma experimental ABIEncoderV2; // Required to support an array of "bytes' which is annoying 
+import "./StateChannel.sol";
+import "./StateChannelFactory.sol";
 
-/*
- * WORK IN PROGRESS. STILL UNDER DEVELOPMENT. THIS IS A DRAFT. DO NOT USE IN PRODUCTION. NOT TESTED AT ALL. THANK YOU, PADDY. 
- */
-contract StateChannel {
+// /*
+//  * WORK IN PROGRESS. STILL UNDER DEVELOPMENT. THIS IS A DRAFT. DO NOT USE IN PRODUCTION. NOT TESTED AT ALL. THANK YOU, PADDY. 
+//  */
+// contract StateChannel {
     
-    // All functions will "throw" if they are not applicable when called. 
-    // i.e. cannot retrieve a state hash, if no dispute process has occurred!
-    // TODO: Confirm/Doublecheck that a "exception" is not encapsulated to just sub-contract. Should be transaction-wide.
-    function triggerDispute() public;
-    function setstate(uint256[] sigs, uint256 _i, bytes32 _hstate) public;
-    function resolve() public; 
-    function getStateHash() public returns (bytes32);
-}
+//     // All functions will "throw" if they are not applicable when called. 
+//     // i.e. cannot retrieve a state hash, if no dispute process has occurred!
+//     // TODO: Confirm/Doublecheck that a "exception" is not encapsulated to just sub-contract. Should be transaction-wide.
+//     function triggerDispute() public;
+//     function setstate(uint256[] sigs, uint256 _i, bytes32 _hstate) public;
+//     function resolve() public; 
+//     function getStateHash() public returns (bytes32);
+// }
 
-// State Channel Interface
-contract StateChannelFactory {
+// // State Channel Interface
+// contract StateChannelFactory {
 
-  function createStateChannel(address[] _parties, uint _disputePeriod) public returns (address addr);
+//   function createStateChannel(address[] _parties, uint _disputePeriod) public returns (address addr);
   
-}
+// }
 
 /*
  * Game Rules: Six ships, all can be placed on the board. Players take turns hitting other player's board. 
@@ -37,14 +39,15 @@ contract BattleShipWithoutBoard {
      * 2. Track whether the state channel is on/off (modifier will disable functionality in contract if turned on)
      * 3. Track whether this battleship game is in the main chain or a private "off-chain" network (disable some functionality if in "off-chain" network)
      */
-    StateChannel stateChannel;
+    StateChannel public stateChannel;
     StateChannelFactory stateChannelFactory; // TODO: Hard-code an address. Only one must exist. 
+    // TODO: disupte time is not set anywhere - should be in the constructor
     
     bool privatenetwork = false; // If this contract is deployed via a private network to simulate execution. Set this to true. Compiler can set it. 
-    bool statechannelon = false; // "false" if state channel contract is not instantiated, and "true" if instantiated.  
+    bool public statechannelon = false; // "false" if state channel contract is not instantiated, and "true" if instantiated.  
     uint disputetime; // fixed time for the dispute process 
     uint extratime; // We need to "add time" to any timer to take into account dispute process (triggering + resolving). 
-    uint channelCounter; // How many times has a state channel been created? 
+    uint public channelCounter; // How many times has a state channel been created? 
     
     // Attach to all functions in the contract. 
     // Disables all functionality if the state channel is instantiated 
@@ -67,7 +70,7 @@ contract BattleShipWithoutBoard {
         // Check signatures from everybody in battleship game
         bytes32 sighash = keccak256(abi.encodePacked("lock",channelCounter, round,address(this)));
         for(uint i=0; i<players.length; i++) {
-            require(recover(sighash, _signatures[i]) == players[i]);
+            require(recoverEthereumSignedMessage(sighash, _signatures[i]) == players[i]);
         }
         
         // All good. Lets lock up contract
@@ -104,66 +107,64 @@ contract BattleShipWithoutBoard {
     // List of ship information (hash, co-ordinates, etc)
     // "r" is the random nonce, agreed by both parties. 
     // Have all parties agreed to unlock this contract? 
-    function unlock(bool[6] _bool, uint8[2] _uints8, uint8[7] _uints, address _winner, uint[8] _maps, bytes32[] _shiphash, uint8[] _x1, uint8[] _y1, uint8[] _x2, uint8[] _y2, bool[] _sunk) public disableForStateChannel disableForPrivateNetwork {
-        
+    function unlock(bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk) public disableForPrivateNetwork {
         // "round" is included in _uints
-        bytes32 _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, address(this)));
-        _h = keccak256(abi.encodePacked(_h, _shiphash, _x1, _y1, _x2, _y2, _sunk));
+        bytes32 _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, _shiphash, _x1, _y1, _x2, _y2, _sunk));
+        _h = keccak256(abi.encodePacked(_h, address(this)));
         
-        // Compare hashes, a state channel can be resolved without setting state in this case getStateHash
-        // returns 0 
-        if(_h == stateChannel.getStateHash()) {
-            statechannelon = false;
-            delete stateChannel;
+        // Compare hashes
+        require(_h == stateChannel.getStateHash());
+
+        statechannelon = false;
+        delete stateChannel;
+        
+        // Store the "_ready" variables 
+        playerShipsReceived[0] = _bool[0];
+        playerShipsReceived[1] = _bool[1];
+        playerReady[0] = _bool[2];
+        playerReady[1] = _bool[3]; 
+        cheated[players[0]] = _bool[4];
+        cheated[players[1]] = _bool[5];
+        
+        // Store the "individual uints" 
+        x = _uints8[0];
+        y = _uints8[1];
+        round = _uints[0]; 
+        move_ctr = _uints[1];
+        totalShipPositions = _uints[2];
+        turn = _uints[3]; 
+        phase = GamePhase(_uints[4]);
+        challengeTime = _uints[5];
+        
+        // Store Winner
+        winner = _winner;
+        
+        // Store mappings
+        water_hits[players[0]] = _maps[0];
+        water_hits[players[1]] = _maps[1];
+        ship_hits[players[0]] = _maps[2];
+        ship_hits[players[1]] = _maps[3];
+        player_balance[players[0]] = _maps[4];
+        player_balance[players[1]] = _maps[5];
+        bets[players[0]] = _maps[6];
+        bets[players[1]] = _maps[7];
+        
+        // Store ships! 
+        for(uint i=0; i<sizes.length*2; i++) {
             
-            // Store the "_ready" variables 
-            playerShipsReceived[0] = _bool[0];
-            playerShipsReceived[1] = _bool[1];
-            playerReady[0] = _bool[2];
-            playerReady[1] = _bool[3]; 
-            cheated[players[0]] = _bool[4];
-            cheated[players[1]] = _bool[5];
-            
-            // Store the "individual uints" 
-            x = _uints8[0];
-            y = _uints8[1];
-            round = _uints[0]; 
-            move_ctr = _uints[1];
-            totalShipPositions = _uints[2];
-            turn = _uints[3]; 
-            phase = GamePhase(_uints[4]);
-            challengeTime = _uints[5];
-            
-            // Store Winner
-            winner = _winner;
-            
-            // Store mappings
-            water_hits[players[0]] = _maps[0];
-            water_hits[players[1]] = _maps[1];
-            ship_hits[players[0]] = _maps[2];
-            ship_hits[players[1]] = _maps[3];
-            player_balance[players[0]] = _maps[4];
-            player_balance[players[1]] = _maps[5];
-            bets[players[0]] = _maps[6];
-            bets[players[1]] = _maps[7];
-            
-            // Store ships! 
-            for(uint i=0; i<sizes.length*2; i++) {
-                
-                if(i < sizes.length) {
-                    ships[players[0]][i] = Ship({hash: _shiphash[i], k: sizes[i % sizes.length], x1: _x1[i], y1: _y1[i], x2: _x2[i], y2: _y2[i], sunk: _sunk[i]});
-                } else {
-                    ships[players[1]][i] = Ship({hash: _shiphash[i], k: sizes[i % sizes.length], x1: _x1[i], y1: _y1[i], x2: _x2[i], y2: _y2[i], sunk: _sunk[i]});
-                }
-                
+            if(i < sizes.length) {
+                ships[players[0]][i] = Ship({hash: _shiphash[i], k: sizes[i % sizes.length], x1: _x1[i], y1: _y1[i], x2: _x2[i], y2: _y2[i], sunk: _sunk[i]});
+            } else {
+                ships[players[1]][i % sizes.length] = Ship({hash: _shiphash[i], k: sizes[i % sizes.length], x1: _x1[i], y1: _y1[i], x2: _x2[i], y2: _y2[i], sunk: _sunk[i]});
             }
+            
         }
     }
 
     // if the channel has been closed without setstate being called then we allow the battleship
     // game to be unlocked in it's prior state. if setstate is missed for some reason, then an
     // unlock would be impossible otherwise.
-    function unlockNoUpdate() public disableForStateChannel disableForPrivateNetwork {
+    function unlockNoUpdate() public disableForPrivateNetwork {
         if(bytes32(0x00) == stateChannel.getStateHash()) {
             statechannelon = false;
             delete stateChannel;
@@ -172,7 +173,7 @@ contract BattleShipWithoutBoard {
     
     
     // Only required in the PRIVATE contract. Not required in the public / ethereum contract. 
-    function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[] _shiphash, uint8[] _x1, uint8[] _y1, uint8[] _x2, uint8[] _y2, bool[] _sunk, bytes32 _h) {
+    function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk, bytes32 _h) {
             
         // Store the "_ready" variables 
         _bool[0] = playerShipsReceived[0]; 
@@ -227,8 +228,7 @@ contract BattleShipWithoutBoard {
         }
         
         // Compute state hash - that will need to be signed! 
-        _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, address(this)));
-        _h = keccak256(abi.encodePacked(_h, _shiphash, _x1, _y1, _x2, _y2, _sunk)); 
+        _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, _shiphash, _x1, _y1, _x2, _y2, _sunk)); 
     }
     
     /* Expected Template Variables:
@@ -314,11 +314,12 @@ contract BattleShipWithoutBoard {
     // - Address of both parties
     // - Challenge timer i.e. parties must respond with their choice within a time period 
     // - Dispute timer i.e. used in the state channel 
-    constructor (address _player0, address _player1, uint _timer_challenge) public {
+    constructor (address _player0, address _player1, uint _timer_challenge, address _stateChannelFactory) public {
         players.push(_player0);
         players.push(_player1);
         phase = GamePhase.Setup;
         timer_challenge = _timer_challenge;
+        stateChannelFactory = StateChannelFactory(_stateChannelFactory);
     }
     
     // Parties can deposit coins during the SETUP phase. 
@@ -667,7 +668,6 @@ contract BattleShipWithoutBoard {
         // Throws if not valid 
         if(!checkValidSlot(_x1, _y1)) { return false; }
         if(!checkValidSlot(_x2, _y2)) { return false; }
-        
         return checkLine(_x1, _y1, _x2, _y2, k);
     }
 
@@ -714,20 +714,19 @@ contract BattleShipWithoutBoard {
         phase = GamePhase.Win;
         challengeTime = now + timer_challenge; // Winner has a fixed time period to open ships 
     }
-
+    
     // Winner must open their ships. 
     // We perform sanity checks on all opened ships.
     // However we cannot check for everything! Only basic things (i.e. straight line)
     // Counterparty is provided time to do a real check and submit fraud proof if necessary
     function openships(uint8[] _x1, uint8[] _y1, uint8[] _x2, uint8[] _y2, uint[] _r) public onlyPlayers disableForStateChannel onlyState(GamePhase.Win) {
         require(msg.sender == winner);        
-        
+
         // We are expecting ALL ship openings! 
         // If a "ship" was already sunk, it can be filled with 0,0,0,0,0. 
         require(_x1.length == ships[winner].length && _y1.length == ships[winner].length && 
                 _x2.length == ships[winner].length && _y2.length == ships[winner].length && 
                 _r.length == ships[winner].length);
-        
         // Go through each ship... store if necessary! 
         for(uint i=0; i<ships[winner].length; i++) {
             
@@ -737,7 +736,6 @@ contract BattleShipWithoutBoard {
                 // Sanity check ships... 
                 if(!checkShipQuality(_x1[i], _y1[i], _x2[i], _y2[i], _r[i], i, winner)) {
                     cheated[winner] = true;
-
                     // the winner cheated! gameOver
                     gameOver();
                     return;                    
@@ -750,7 +748,7 @@ contract BattleShipWithoutBoard {
                 ships[winner][i].y2 = _y2[i]; 
             }
         }
-        
+
         // No fraud detected on opened ships. Let the counterparty have their turn. 
         phase = GamePhase.Fraud; 
         challengeTime = now + timer_challenge;
@@ -836,10 +834,10 @@ contract BattleShipWithoutBoard {
         }
         
     }
-    
+
     // A player has tried to take the same shot twice. This should not be allowed. 
     // Can be called at any point during the game
-    function fraudAttackSameCell(uint _move1, uint _move2, uint _x, uint _y, bytes[] _signatures) public onlyPlayers disableForStateChannel {
+    function fraudAttackSameCell(uint _move1, uint _move2, uint8 _x, uint8 _y, bytes[] _signatures) public onlyPlayers disableForStateChannel {
         
         // Fraud can only be used during certain phases 
         require(phase == GamePhase.Attack || phase == GamePhase.Reveal || phase == GamePhase.Fraud);
@@ -855,12 +853,13 @@ contract BattleShipWithoutBoard {
         
         // Check first signed cell...
         bytes32 sighash = keccak256(abi.encodePacked(_x,_y, _move1, round, address(this)));
-        require(recover(sighash, _signatures[0]) == counterparty);
-        
+        require(recoverEthereumSignedMessage(sighash, _signatures[0]) == counterparty);
+
         // Check the second signed cell
         sighash = keccak256(abi.encodePacked(_x,_y, _move2, round, address(this)));
-        require(recover(sighash, _signatures[0]) == counterparty);
+        require(recoverEthereumSignedMessage(sighash, _signatures[1]) == counterparty);
         
+
         cheated[counterparty] = true; 
         
         if(phase == GamePhase.Attack || phase == GamePhase.Reveal) {
@@ -887,11 +886,9 @@ contract BattleShipWithoutBoard {
             
             // We have detected fraud! They should have finished their turn by now.  
             fraudDetected(turn);
-            
         }
-        
         // In REVEAL - we care about the counterparty of the turn 
-        if(phase == GamePhase.Reveal) {
+        else if(phase == GamePhase.Reveal) {
             
             // Counterparty should have finished their  turn by now. 
             // So we consider it "fraud" if the time limit is up. 
@@ -899,7 +896,7 @@ contract BattleShipWithoutBoard {
         }
         
         // In WIN - we care about the winner revealing their board!
-        if(phase == GamePhase.Win) {
+        else if(phase == GamePhase.Win) {
             
             // Only the loser should call this fraud! 
             require(winner != msg.sender);
@@ -978,7 +975,7 @@ contract BattleShipWithoutBoard {
         
         // Has the ship been marked as sunk? 
         require(!ships[winner][_shipindex].sunk);
-            
+        
         // We know it is a line... so we just now check every signature 
         // Vertical
         if(ships[winner][_shipindex].x1 == ships[winner][_shipindex].x2) {
@@ -986,12 +983,11 @@ contract BattleShipWithoutBoard {
             // OK we need to now check that the winner signed a "reveal" message for every slot 
             // First - lets make sure we have enough signatures to check! 
             require(ships[winner][_shipindex].k == _signatures.length && ships[winner][_shipindex].k == _move_ctr.length);
-                
+             
             // Go through every slot. We know that "y" should be incremented as this is a veritical ship. 
-            for(uint i=0; i<_signatures.length; i++) {
+            for(uint8 i=0; i<_signatures.length; i++) {
                 bytes32 sighash = keccak256(abi.encodePacked(ships[winner][_shipindex].x1,ships[winner][_shipindex].y1+i,true,_move_ctr[i],round,address(this)));
-                
-                require(recover(sighash, _signatures[i]) == winner);
+                require(recoverEthereumSignedMessage(sighash, _signatures[i]) == winner);
             }
             
             // YUP! The winner did declare all ship slots as hit. But did not declare the ship as sunk.  
@@ -1005,7 +1001,7 @@ contract BattleShipWithoutBoard {
             // Go through every slot. We know that "x" should be incremented as this is a horizontal ship. 
             for(i=0; i<_signatures.length; i++) {
                 sighash = keccak256(abi.encodePacked(ships[winner][_shipindex].x1+i,ships[winner][_shipindex].y1,true,_move_ctr[i],round,address(this)));
-                require(recover(sighash, _signatures[i]) == winner);
+                require(recoverEthereumSignedMessage(sighash, _signatures[i]) == winner);
             }
             
             // Again yay! the winner did declare all ship slots as hit. But did not declare the ship as sunk. 
