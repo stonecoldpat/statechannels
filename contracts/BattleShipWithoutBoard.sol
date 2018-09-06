@@ -77,7 +77,7 @@ contract BattleShipWithoutBoard {
         // Create state channel contract! 
         stateChannel = StateChannel(stateChannelFactory.createStateChannel(players, disputetime)); 
     }
-    
+
     // Paddy: Work in Progress, but this looks really ugly to set the full state. 
     // Ideally we can fit it inside one function. But perhaps we spread it across several and just submit h1,h2,h3, and h' = h(h1,h2,h3). 
     // 
@@ -112,7 +112,7 @@ contract BattleShipWithoutBoard {
         
         // Compare hashes, a state channel can be resolved without setting state in this case getStateHash
         // returns 0 
-        if(bytes32(0x00) == stateChannel.getStateHash() || _h == stateChannel.getStateHash()) {
+        if(_h == stateChannel.getStateHash()) {
             statechannelon = false;
             delete stateChannel;
             
@@ -159,6 +159,17 @@ contract BattleShipWithoutBoard {
             }
         }
     }
+
+    // if the channel has been closed without setstate being called then we allow the battleship
+    // game to be unlocked in it's prior state. if setstate is missed for some reason, then an
+    // unlock would be impossible otherwise.
+    function unlockNoUpdate() public disableForStateChannel disableForPrivateNetwork {
+        if(bytes32(0x00) == stateChannel.getStateHash()) {
+            statechannelon = false;
+            delete stateChannel;
+        }
+    }
+    
     
     // Only required in the PRIVATE contract. Not required in the public / ethereum contract. 
     function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[] _shiphash, uint8[] _x1, uint8[] _y1, uint8[] _x2, uint8[] _y2, bool[] _sunk, bytes32 _h) {
