@@ -26,7 +26,7 @@ There are several ways the community are approaching "scaling":
 --> Create "processing areas" dedicated to specific transactions. One shard for hotel bookings, one for train bookings. This distributes validation as validators only verify the shard they care about. But if the validators care about multiple shards, the problem doesn't go away. 
 
 - Offchain 
---> All parties execute an application (or series of payments) locally amongst themselves. The blockchain is only consulted to "peg" onto the off-chain solution, to resolve disputes that may arise and to guarantee the "safety" of funds/"liveness" of the application. 
+--> All parties execute an application (or series of payments) locally amongst themselves. The blockchain is only consulted to "peg" onto the off-chain solution, to resolve disputes that may arise and to guarantee the "safety" of funds/"liveness" of the application. This reduces the blockchain's load as only a subset of transactions need to be sent. 
 
 There are two approaches for off-chain which include sidechains (i.e. plasma) or state channels. The fundamental difference between both approaches is that in a sidechain, the users and the maintainers are distinct sets of people, whereas in a state channel the users ARE the maintainers. 
 
