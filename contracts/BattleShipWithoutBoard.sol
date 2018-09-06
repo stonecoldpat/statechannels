@@ -160,8 +160,8 @@ contract BattleShipWithoutBoard {
     }
     
     // Only required in the PRIVATE contract. Not required in the public / ethereum contract. 
-    function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[] _shiphash, uint8[] _x1, uint8[] _y1, uint8[] _x2, uint8[] _y2, bool[] _sunk, bytes32 _h) {
-            
+    function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk, bytes32 _h) {
+        
         // Store the "_ready" variables 
         _bool[0] = playerShipsReceived[0]; 
         _bool[1] = playerShipsReceived[1];
@@ -183,7 +183,7 @@ contract BattleShipWithoutBoard {
             
         // Store Winner
         _winner = winner;
-            
+        
         // Store mappings
         _maps[0] = water_hits[players[0]];
         _maps[1] = water_hits[players[1]];
@@ -193,7 +193,7 @@ contract BattleShipWithoutBoard {
         _maps[5] = player_balance[players[1]];
         _maps[6] = bets[players[0]];
         _maps[7] = bets[players[1]];
-            
+
         // Store ships! 
         for(uint i=0; i<sizes.length*2; i++) {
                 
@@ -211,7 +211,7 @@ contract BattleShipWithoutBoard {
             _x2[i] = ships[toUpdate][i % sizes.length].x2;
             _y2[i] = ships[toUpdate][i % sizes.length].y2;
             _sunk[i] = ships[toUpdate][i % sizes.length].sunk; 
-    
+            
         }
         
         // Compute state hash - that will need to be signed! 
@@ -356,7 +356,7 @@ contract BattleShipWithoutBoard {
         
         // Hash the ship commitment 
         bytes32 sighash = keccak256(abi.encodePacked(_size, _ships, players[counterparty], round, address(this)));
-                
+        
         // Verify counterparty signed ship commitment
         // Thus, both parties have signed this commitment! (since party had to sign tx)
         require(recoverEthereumSignedMessage(sighash, _signature) == players[counterparty]);
