@@ -110,8 +110,9 @@ contract BattleShipWithoutBoard {
         bytes32 _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, address(this)));
         _h = keccak256(abi.encodePacked(_h, _shiphash, _x1, _y1, _x2, _y2, _sunk));
         
-        // Compare hashes 
-        if(_h == stateChannel.getStateHash()) {
+        // Compare hashes, a state channel can be resolved without setting state in this case getStateHash
+        // returns 0 
+        if(bytes32(0x00) == stateChannel.getStateHash() || _h == stateChannel.getStateHash()) {
             statechannelon = false;
             delete stateChannel;
             
