@@ -28,6 +28,7 @@ contract StateChannel {
     event EventDispute (uint256 indexed deadline);
     event EventResolve (uint256 indexed bestround);
     event EventEvidence (uint256 indexed bestround, bytes32 hstate);
+    event EventClose (uint256 indexed bestround, bytes32 hstate);
 
     modifier onlyplayers { if (pmap[msg.sender]) _; else revert(); }
 
@@ -96,6 +97,32 @@ contract StateChannel {
         emit EventResolve(bestRound);
     }
 
+    // if players are in agreement they can the channel without going through the dispute process
+    function close(uint256[] sigs, uint256 _i, bytes32 _hstate) onlyplayers public {
+        require(status != Status.OFF);
+
+        bytes32 h = keccak256("close", _hstate, _i, address(this));
+        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+        h = keccak256(prefix, h);
+
+        // Check all parties in channel have signed it.
+        for (uint i = 0; i < plist.length; i++) {
+            uint8 V = uint8(sigs[i*3+0])+27;
+            bytes32 R = bytes32(sigs[i*3+1]);
+            bytes32 S = bytes32(sigs[i*3+2]);
+            verifySignature(plist[i], h, V, R, S);
+        }
+
+        // Store state
+        bestRound = _i;
+        hstate = _hstate;
+
+        // close the channel
+        status = Status.OFF;
+
+        // Tell the world about the new state!
+        emit EventClose(bestRound, hstate);
+    }
 
     // Fetch a dispute.
     function getDispute() public view returns (uint256, uint256, uint256) {
