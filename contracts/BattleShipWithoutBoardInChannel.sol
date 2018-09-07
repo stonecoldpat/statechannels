@@ -10,7 +10,8 @@ import "./StateChannelFactory.sol";
  * Why? Because sending a 10x10 grid is ~2m gas. Could have root + merkle tree; but impl complex + still significant gas overhead. 
  *
  */ 
-contract BattleShipWithoutBoard {
+contract BattleShipWithoutBoardInChannel {
+   
     // *********** START OF STATE CHANNEL EXTRA FUNCTIONALITY  ***********
     /* 
      * 1. Store address of a new state channel (and perhaps a pointer to its code)
@@ -18,7 +19,8 @@ contract BattleShipWithoutBoard {
      * 3. Track whether this battleship game is in the main chain or a private "off-chain" network (disable some functionality if in "off-chain" network)
      */
     StateChannel public stateChannel;
-    StateChannelFactory stateChannelFactory;
+    StateChannelFactory stateChannelFactory; // TODO: Hard-code an address. Only one must exist. 
+    address public onChainBattleshipContract;
     
     bool privatenetwork = false; // If this contract is deployed via a private network to simulate execution. Set this to true. Compiler can set it. 
     bool public statechannelon = false; // "false" if state channel contract is not instantiated, and "true" if instantiated.  
@@ -57,7 +59,7 @@ contract BattleShipWithoutBoard {
         // Create state channel contract! 
         stateChannel = StateChannel(stateChannelFactory.createStateChannel(players, disputetime)); 
     }
-
+    
     // Paddy: Work in Progress, but this looks really ugly to set the full state. 
     // Ideally we can fit it inside one function. But perhaps we spread it across several and just submit h1,h2,h3, and h' = h(h1,h2,h3). 
     // 
@@ -87,11 +89,10 @@ contract BattleShipWithoutBoard {
     function unlock(bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk) public disableForPrivateNetwork {
         // "round" is included in _uints
         bytes32 _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, _shiphash, _x1, _y1, _x2, _y2, _sunk));
-        _h = keccak256(abi.encodePacked(_h, address(this)));
-        
+        _h = keccak256(abi.encodePacked(_h, address(this)));        
         // Compare hashes
         require(_h == stateChannel.getStateHash());
-
+        
         statechannelon = false;
         delete stateChannel;
         
@@ -291,12 +292,13 @@ contract BattleShipWithoutBoard {
     // - Address of both parties
     // - Challenge timer i.e. parties must respond with their choice within a time period 
     // - Dispute timer i.e. used in the state channel 
-    constructor (address _player0, address _player1, uint _timer_challenge, address _stateChannelFactory) public {
+    constructor (address _player0, address _player1, uint _timer_challenge, address _stateChannelFactory, address _onChainBattleshipContract) public {
         players.push(_player0);
         players.push(_player1);
         phase = GamePhase.Setup;
         timer_challenge = _timer_challenge;
         stateChannelFactory = StateChannelFactory(_stateChannelFactory);
+        onChainBattleshipContract = _onChainBattleshipContract;
     }
     
     // Parties can deposit coins during the SETUP phase. 
@@ -635,7 +637,7 @@ contract BattleShipWithoutBoard {
         uint8 k;
         
          // Is this the ship we are expecting? 
-        if(ships[_counterparty][_shipindex].hash == keccak256(abi.encodePacked(_x1, _y1, _x2, _y2, _r,_counterparty, round, address(this)))) {
+        if(ships[_counterparty][_shipindex].hash == keccak256(abi.encodePacked(_x1, _y1, _x2, _y2, _r,_counterparty, round, onChainBattleshipContract))) {
             k = ships[_counterparty][_shipindex].k;
         } else {
             return false; 

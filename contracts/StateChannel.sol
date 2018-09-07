@@ -119,7 +119,7 @@ contract StateChannel {
 
         // close the channel
         status = Status.OFF;
-
+        
         // Tell the world about the new state!
         emit EventClose(bestRound, hstate);
     }
