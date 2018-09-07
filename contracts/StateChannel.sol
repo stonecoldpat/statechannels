@@ -98,7 +98,7 @@ contract StateChannel {
     }
 
     // if players are in agreement they can the channel without going through the dispute process
-    function close(uint256[] sigs, uint256 _i, bytes32 _hstate) onlyplayers public {
+    function close(uint256[] sigs, uint256 _i, bytes32 _hstate) public {
         require(status != Status.OFF);
 
         bytes32 h = keccak256("close", _hstate, _i, address(this));
