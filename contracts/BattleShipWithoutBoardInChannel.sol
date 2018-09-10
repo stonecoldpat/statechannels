@@ -3,6 +3,14 @@ pragma experimental ABIEncoderV2; // Required to support an array of "bytes' whi
 import "./StateChannel.sol";
 import "./StateChannelFactory.sol";
 
+
+// We have a modified battleships contract to run off chain as we need to be able to
+// inject the address of the on chain battleship contract to be able to verify ship
+// commitments in checkShip. This problem exists as we cannot deploy the contracts to
+// the same address without the following https://eips.ethereum.org/EIPS/eip-1014 or 
+// https://github.com/ethereum/EIPs/issues/859
+
+
 /*
  * Game Rules: Five ships, all can be placed on the board. Players take turns hitting other player's board. 
  * Our game only relies on a commitment to every ship; failure to set up correctly eventually allows the loser to claim all winnings. 
@@ -19,7 +27,7 @@ contract BattleShipWithoutBoardInChannel {
      * 3. Track whether this battleship game is in the main chain or a private "off-chain" network (disable some functionality if in "off-chain" network)
      */
     StateChannel public stateChannel;
-    StateChannelFactory stateChannelFactory; // TODO: Hard-code an address. Only one must exist. 
+    StateChannelFactory stateChannelFactory;
     address public onChainBattleshipContract;
     
     bool privatenetwork = false; // If this contract is deployed via a private network to simulate execution. Set this to true. Compiler can set it. 
