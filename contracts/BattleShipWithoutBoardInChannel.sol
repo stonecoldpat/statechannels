@@ -894,6 +894,47 @@ contract BattleShipWithoutBoardInChannel {
         }
     }
 
+    // did a counterparty declare a square as hit when it should have be revealed as a miss?
+    // when the ships have been opened a party can check the opponents board to see if they cheated
+    // for a given supplied square, check that it is not a hit on any of the opened ships
+    // and check that the it was declared as a hit by the counterparty
+    // can only be called during the FRAUD phase
+    function fraudDeclaredNotMiss(uint8 _x, uint8 _y, uint _move_ctr, bytes _signature) public onlyPlayers disableForStateChannel {
+        require(phase == GamePhase.Fraud);
+        require(msg.sender != winner);
+
+        address counterparty;
+        if(msg.sender == players[0]) {
+            counterparty = players[1];
+        } else {
+            counterparty = players[0];
+        }
+
+        // go through each of the ships and check to see if this square is part of onle of them
+        bool isAHit = false;
+        for(uint8 shipIndex = 0; shipIndex<sizes.length; shipIndex++) {
+            // check each of the ships, of the square is hit on none of them the opponent cheated
+            require(ships[counterparty][shipIndex].x1 > 0 || ships[counterparty][shipIndex].y1 > 0 || 
+                                            ships[counterparty][shipIndex].x2 > 0 || ships[counterparty][shipIndex].y2 > 0);
+
+            isAHit = isAHit && checkAttackSlot(_x,_y,ships[counterparty][shipIndex].x1, ships[counterparty][shipIndex].y1,
+                                            ships[counterparty][shipIndex].x2, ships[counterparty][shipIndex].y2);
+        }
+        
+        // not a hit on any ship
+        if(!isAHit) {
+            // Lets finally check if the counterparty marked this slot as hit during the game 
+            bytes32 sighash = keccak256(abi.encodePacked(_x,_y,true, _move_ctr, round, address(this)));
+            require(recoverEthereumSignedMessage(sighash, _signature) == counterparty);
+
+            // Yup! Winner cheated! 
+            cheated[counterparty] = true;
+            
+            // Time to close up shop 
+            gameOver(); 
+        }
+    }
+
     // Did counterparty not declare a ship was hit? 
     // Requires: List of signed messages from counterparty on slots
     // Look up ship opening, identify its slots. Check if there is a signed message for each slot. Yup? Not declared as sunk.
