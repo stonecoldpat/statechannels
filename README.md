@@ -81,3 +81,4 @@ Other Resources (Coming soon)
 =========================
 
 Slides: https://docs.google.com/presentation/d/1kVy77xRjzwLdUKbtHUMIhLF3eueaUf5lREwcRiDgPAk/edit?usp=sharing
+Video: https://www.youtube.com/watch?v=_yOCir3radM&feature=youtu.be
