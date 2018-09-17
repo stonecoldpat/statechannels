@@ -3,6 +3,14 @@ pragma experimental ABIEncoderV2; // Required to support an array of "bytes' whi
 import "./StateChannel.sol";
 import "./StateChannelFactory.sol";
 
+
+// We have a modified battleships contract to run off chain as we need to be able to
+// inject the address of the on chain battleship contract to be able to verify ship
+// commitments in checkShip. This problem exists as we cannot deploy the contracts to
+// the same address without the following https://eips.ethereum.org/EIPS/eip-1014 or 
+// https://github.com/ethereum/EIPs/issues/859
+
+
 /*
  * Game Rules: Five ships, all can be placed on the board. Players take turns hitting other player's board. 
  * Our game only relies on a commitment to every ship; failure to set up correctly eventually allows the loser to claim all winnings. 
@@ -10,7 +18,8 @@ import "./StateChannelFactory.sol";
  * Why? Because sending a 10x10 grid is ~2m gas. Could have root + merkle tree; but impl complex + still significant gas overhead. 
  *
  */ 
-contract BattleShipWithoutBoard {
+contract BattleShipWithoutBoardInChannel {
+   
     // *********** START OF STATE CHANNEL EXTRA FUNCTIONALITY  ***********
     /* 
      * 1. Store address of a new state channel (and perhaps a pointer to its code)
@@ -19,6 +28,7 @@ contract BattleShipWithoutBoard {
      */
     StateChannel public stateChannel;
     StateChannelFactory stateChannelFactory;
+    address public onChainBattleshipContract;
     
     bool privatenetwork = false; // If this contract is deployed via a private network to simulate execution. Set this to true. Compiler can set it. 
     bool public statechannelon = false; // "false" if state channel contract is not instantiated, and "true" if instantiated.  
@@ -57,7 +67,7 @@ contract BattleShipWithoutBoard {
         // Create state channel contract! 
         stateChannel = StateChannel(stateChannelFactory.createStateChannel(players, disputetime)); 
     }
-
+    
     // Paddy: Work in Progress, but this looks really ugly to set the full state. 
     // Ideally we can fit it inside one function. But perhaps we spread it across several and just submit h1,h2,h3, and h' = h(h1,h2,h3). 
     // 
@@ -87,11 +97,10 @@ contract BattleShipWithoutBoard {
     function unlock(bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk) public disableForPrivateNetwork {
         // "round" is included in _uints
         bytes32 _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, _shiphash, _x1, _y1, _x2, _y2, _sunk));
-        _h = keccak256(abi.encodePacked(_h, address(this)));
-        
+        _h = keccak256(abi.encodePacked(_h, address(this)));        
         // Compare hashes
         require(_h == stateChannel.getStateHash());
-
+        
         statechannelon = false;
         delete stateChannel;
         
@@ -151,7 +160,7 @@ contract BattleShipWithoutBoard {
     
     // Only required in the PRIVATE contract. Not required in the public / ethereum contract. 
     function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk, bytes32 _h) {
-        
+            
         // Store the "_ready" variables 
         _bool[0] = playerShipsReceived[0]; 
         _bool[1] = playerShipsReceived[1];
@@ -173,7 +182,7 @@ contract BattleShipWithoutBoard {
             
         // Store Winner
         _winner = winner;
-        
+            
         // Store mappings
         _maps[0] = water_hits[players[0]];
         _maps[1] = water_hits[players[1]];
@@ -183,7 +192,7 @@ contract BattleShipWithoutBoard {
         _maps[5] = player_balance[players[1]];
         _maps[6] = bets[players[0]];
         _maps[7] = bets[players[1]];
-
+            
         // Store ships! 
         for(uint i=0; i<sizes.length*2; i++) {
                 
@@ -201,7 +210,7 @@ contract BattleShipWithoutBoard {
             _x2[i] = ships[toUpdate][i % sizes.length].x2;
             _y2[i] = ships[toUpdate][i % sizes.length].y2;
             _sunk[i] = ships[toUpdate][i % sizes.length].sunk; 
-            
+    
         }
         
         // Compute state hash - that will need to be signed! 
@@ -291,12 +300,13 @@ contract BattleShipWithoutBoard {
     // - Address of both parties
     // - Challenge timer i.e. parties must respond with their choice within a time period 
     // - Dispute timer i.e. used in the state channel 
-    constructor (address _player0, address _player1, uint _timer_challenge, address _stateChannelFactory) public {
+    constructor (address _player0, address _player1, uint _timer_challenge, address _stateChannelFactory, address _onChainBattleshipContract) public {
         players.push(_player0);
         players.push(_player1);
         phase = GamePhase.Setup;
         timer_challenge = _timer_challenge;
         stateChannelFactory = StateChannelFactory(_stateChannelFactory);
+        onChainBattleshipContract = _onChainBattleshipContract;
     }
     
     // Parties can deposit coins during the SETUP phase. 
@@ -346,7 +356,7 @@ contract BattleShipWithoutBoard {
         
         // Hash the ship commitment 
         bytes32 sighash = keccak256(abi.encodePacked(_size, _ships, players[counterparty], round, address(this)));
-        
+                
         // Verify counterparty signed ship commitment
         // Thus, both parties have signed this commitment! (since party had to sign tx)
         require(recoverEthereumSignedMessage(sighash, _signature) == players[counterparty]);
@@ -635,7 +645,7 @@ contract BattleShipWithoutBoard {
         uint8 k;
         
          // Is this the ship we are expecting? 
-        if(ships[_counterparty][_shipindex].hash == keccak256(abi.encodePacked(_x1, _y1, _x2, _y2, _r,_counterparty, round, address(this)))) {
+        if(ships[_counterparty][_shipindex].hash == keccak256(abi.encodePacked(_x1, _y1, _x2, _y2, _r,_counterparty, round, onChainBattleshipContract))) {
             k = ships[_counterparty][_shipindex].k;
         } else {
             return false; 

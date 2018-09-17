@@ -1,4 +1,7 @@
 const BattleShipWithoutBoard = artifacts.require("./BattleShipWithoutBoard.sol");
+const BattleShipWithoutBoardInChannel = artifacts.require("./BattleShipWithoutBoardInChannel.sol");
+const StateChannelFactory = artifacts.require("./StateChannelFactory.sol");
+const StateChannel = artifacts.require("./StateChannel.sol");
 const Web3Util = require("web3-utils");
 const Web3 = require("web3");
 const web32 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
@@ -156,6 +159,12 @@ const storeShips = async (
     assert.equal(playerShipsRecieved, true);
 };
 
+const doNotPlay = async (contract, player) => {
+    await contract.doNotPlay({ from: player });
+    let phase = await contract.phase();
+    assert.equal(phase, Phase.Setup);
+};
+
 const playerReady = async (contract, player, expectedPhase) => {
     await contract.readyToPlay({ from: player });
     let phase = await contract.phase();
@@ -180,6 +189,7 @@ const attack = async (contract, player, x, y) => {
     await contract.attack(x, y, sig, { from: player });
     const phase = await contract.phase();
     assert.equal(phase.toNumber(), 2);
+    return sig;
 };
 
 const reveal = async (contract, player, x, y, hit) => {
@@ -282,7 +292,7 @@ const testForHitAndReveal = async (contract, player, board, x, y, ships, current
 };
 
 const openShips = async (contract, winner, winnerShips) => {
-    await contract.openships(
+    let returnVals = await contract.openships(
         winnerShips.map(s => s.x1),
         winnerShips.map(s => s.y1),
         winnerShips.map(s => s.x2),
@@ -290,8 +300,9 @@ const openShips = async (contract, winner, winnerShips) => {
         winnerShips.map(s => s.r),
         { from: winner }
     );
+
     const phase = await contract.phase();
-    assert.equal(phase.toNumber(), 4);
+    assert.equal(phase.toNumber(), Phase.Fraud);
 };
 
 const finishGame = async (contract, player) => {
@@ -334,7 +345,7 @@ const withdraw = async (contract, player, amount) => {
 const timerChallenge = 20;
 const depositValue = Web3Util.toWei("0.1", "ether");
 
-const setupGame = async (contract, player0, player1, boardBuilder0, boardBuilder1) => {
+const setupGame = async (contract, player0, player1, boardBuilder0, boardBuilder1, cancelSetup) => {
     console.log("\t// SETUP //");
 
     assert.equal(await web32.eth.getBalance(contract.address), 0);
@@ -384,11 +395,16 @@ const setupGame = async (contract, player0, player1, boardBuilder0, boardBuilder
         player0Sigs.shipsCommitment
     );
 
-    console.log("\tstart play");
-    await playerReady(contract, player0, 0);
-    await playerReady(contract, player1, 1);
+    if (cancelSetup) {
+        console.log("\tcancel setup");
+        await doNotPlay(contract, player0);
+        await doNotPlay(contract, player1);
+    } else {
+        console.log("\tstart play");
+        await playerReady(contract, player0, 0);
+        await playerReady(contract, player1, 1);
+    }
     console.log("\t// SETUP //\n");
-
     return { player0: player0Ships, player1: player1Ships };
 };
 
@@ -403,7 +419,7 @@ const attackAndReveal = async (
     revealPlayerShips,
     overrides
 ) => {
-    await attack(contract, attackPlayer, x, y);
+    let attackSig = await attack(contract, attackPlayer, x, y);
     let attackMoveCtr = await contract.move_ctr();
     let revealSink = await testForHitAndReveal(
         contract,
@@ -413,25 +429,43 @@ const attackAndReveal = async (
         y,
         revealPlayerShips,
         attackPlayerCurrentSinks,
-        (overrides.hitSupplied || overrides.sinkSupplied) && overrides
+        (overrides.hitSupplied || overrides.sunkSupplied) && overrides
     );
     if (revealSink === "sink") {
-        return { sink: true };
+        return { sink: true, attackSig };
     } else {
         assert.equal(attackMoveCtr.toNumber(), revealSink.moveCtr.toNumber());
-        return revealSink;
+        return { ...revealSink, attackSig };
     }
 };
 
-const playThrough5x5 = async (contract, player0, player1, gameState, neverRevealPlayer0, neverSinkPlayer0) => {
+const playThrough5x5 = async (
+    contract,
+    player0,
+    player1,
+    gameState,
+    neverRevealPlayer0,
+    neverSinkPlayer0,
+    maxPlays
+) => {
     console.log("\t// PLAY //");
     let player0Sinks = 0;
     let player1Sinks = 0;
     let winner;
     const reveals = [];
+    let plays = 0;
+
 
     for (x = 0; x < 5; x++) {
         for (y = 0; y < 5; y++) {
+            console.log(plays)
+            if (maxPlays && plays >= maxPlays) {
+                return {
+                    winner,
+                    reveal
+                };
+            }
+            plays = plays + 2;
             let player0Move = await attackAndReveal(
                 contract,
                 player0,
@@ -455,7 +489,7 @@ const playThrough5x5 = async (contract, player0, player1, gameState, neverReveal
             let player0Overrides = {};
             if (neverRevealPlayer0) player0Overrides = { ...player0Overrides, ...{ hit: 0, hitSupplied: true } };
             if (neverSinkPlayer0) player0Overrides = { ...player0Overrides, ...{ sunk: false, sunkSupplied: true } };
-
+            
             // now switch over and reveal the other player
             let player1Move = await attackAndReveal(
                 contract,
@@ -483,17 +517,77 @@ const playThrough5x5 = async (contract, player0, player1, gameState, neverReveal
     return { winner, reveals };
 };
 
+const sigTools = {
+    hashWithAddress: (hState, address) => {
+        return web3.utils.soliditySha3({ t: "bytes32", v: hState }, { t: "address", v: address });
+    },
+
+    hashAndSignState: async (hState, round, channelAddress, playerAddress) => {
+        let msg = web3.utils.soliditySha3(
+            { t: "bytes32", v: hState },
+            { t: "uint256", v: round },
+            { t: "address", v: channelAddress }
+        );
+        const sig = await web3.eth.sign(msg, playerAddress);
+        return sig;
+    },
+
+    hashAndSignClose: async (hState, round, channelAddress, playerAddress) => {
+        let msg = web3.utils.soliditySha3(
+            { t: "string", v: "close" },
+            { t: "bytes32", v: hState },
+            { t: "uint256", v: round },
+            { t: "address", v: channelAddress }
+        );
+        const sig = await web3.eth.sign(msg, playerAddress);
+        return sig;
+    },
+
+    hashAndSignLock: async (channelCounter, round, battleShipAddress, playerAddress) => {
+        let msg = web3.utils.soliditySha3(
+            { t: "string", v: "lock" },
+            { t: "uint256", v: channelCounter },
+            { t: "uint256", v: round },
+            { t: "address", v: battleShipAddress }
+        );
+        const sig = await web3.eth.sign(msg, playerAddress);
+        return sig;
+    },
+
+    chopUpSig: sig => {
+        const removedHexNotation = sig.slice(2);
+        var r = `0x${removedHexNotation.slice(0, 64)}`;
+        var s = `0x${removedHexNotation.slice(64, 128)}`;
+        var v = `0x${removedHexNotation.slice(128, 130)}`;
+        return [v, r, s];
+    }
+};
+
 contract("BattleShips", function(accounts) {
     const player0 = accounts[0];
     const player1 = accounts[1];
     const gasLibs = [];
     const config = {
-        endToEnd: true,
+        endToEnd: false,
         fraudShipsSameCell: false,
         fraudAttackSameCell: false,
         fraudDeclaredNotHit: false,
-        fraudDeclaredNotSunk: false
-    };  
+        fraudDeclaredNotSunk: false,
+        doNotPlay: false,
+        stateChannelFactoryEndToEnd: false,
+        stateChannelEndToEndDispute: false,
+        stateChannelEndToEndCoop: false,
+        battleshipAndStateChannel: true,
+        fraudChallengePeriodExpired: false,
+        battleshipNoUpdate: false,
+        battleshipAndStateChannelMidwayExit: false
+    };
+    let theStateChannelFactory;
+
+    before(async () => {
+        // populate the state channel factory
+        theStateChannelFactory = await StateChannelFactory.new();
+    });
 
     it("simple end to end", async () => {
         if (!config.endToEnd) return;
@@ -501,8 +595,13 @@ contract("BattleShips", function(accounts) {
         console.log("\tconstruct");
         const gasLib = [];
         const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
-        const BattleShipGame = await BattleShipGamePre.new(player0, player1, timerChallenge);
-        
+        const BattleShipGame = await BattleShipGamePre.new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+
         // setup with basic boards
         let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
 
@@ -523,6 +622,472 @@ contract("BattleShips", function(accounts) {
         gasLibs.push({ test: "end-to-end", gasLib });
     });
 
+    it("do not play", async () => {
+        if (!config.doNotPlay) return;
+
+        console.log("\tconstruct");
+        const gasLib = [];
+        const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
+        const BattleShipGame = await BattleShipGamePre.new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+
+        // setup with basic boards
+        let gameState = await setupGame(
+            BattleShipGame,
+            player0,
+            player1,
+            constructBasicShips,
+            constructBasicShips,
+            true
+        );
+        gasLibs.push({ test: "do-not-play", gasLib });
+    });
+
+    it("statechannelfactory end-to-end", async () => {
+        if (!config.stateChannelFactoryEndToEnd) return;
+
+        console.log("\tconstruct");
+        const gasLib = [];
+        const StatechannelFactoryInstance = await createGasProxy(StateChannelFactory, gasLib, web32).new();
+        const StateChannelTx = await StatechannelFactoryInstance.createStateChannel([player0, player1], timerChallenge);
+
+        gasLibs.push({ test: "statechannel-factory-end-to-end", gasLib });
+    });
+
+    // quick
+    it("statechannel end-to-end dispute", async () => {
+        if (!config.stateChannelEndToEndDispute) return;
+
+        console.log("\tconstruct");
+        const gasLib = [];
+        const StatechannelInstance = await createGasProxy(StateChannel, gasLib, web32).new([player0, player1], 0);
+
+        // dispute
+        await StatechannelInstance.triggerDispute({ from: player0 });
+
+        // sign some state
+        const dummyHstate = "0x00";
+        const dummyRound = 1;
+        const player0Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignState(dummyHstate, dummyRound, StatechannelInstance.address, player0)
+        );
+        const player1Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignState(dummyHstate, dummyRound, StatechannelInstance.address, player1)
+        );
+
+        // set state
+        await StatechannelInstance.setstate([...player0Sig, ...player1Sig], dummyRound, dummyHstate);
+
+        // resolve
+        await StatechannelInstance.resolve();
+
+        gasLibs.push({ test: "statechannel-end-to-end-dispute", gasLib });
+    });
+
+    it("statechannel end-to-end coop", async () => {
+        if (!config.stateChannelEndToEndCoop) return;
+
+        console.log("\tconstruct");
+        const gasLib = [];
+        const StatechannelInstance = await createGasProxy(StateChannel, gasLib, web32).new([player0, player1], 0);
+
+        // sign some state
+        const dummyHstate = "0x00";
+        const dummyRound = 1;
+        const player0Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignClose(dummyHstate, dummyRound, StatechannelInstance.address, player0)
+        );
+        const player1Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignClose(dummyHstate, dummyRound, StatechannelInstance.address, player1)
+        );
+
+        // set state
+        await StatechannelInstance.close([...player0Sig, ...player1Sig], dummyRound, dummyHstate);
+
+        gasLibs.push({ test: "statechannel-end-to-end-coop", gasLib });
+    });
+
+    it("battleship end-to-end with lock unlock", async () => {
+        if (!config.battleshipAndStateChannel) return;
+
+        console.log("\tconstruct");
+        const gasLib = [];
+        const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
+        const BattleShipGame = await BattleShipGamePre.new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+
+        // setup with basic boards
+        let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
+
+        // now lockup
+        let channelCounter = await BattleShipGame.channelCounter();
+        let round = await BattleShipGame.round();
+
+        let sig0 = await sigTools.hashAndSignLock(channelCounter, round, BattleShipGame.address, player0);
+        let sig1 = await sigTools.hashAndSignLock(channelCounter, round, BattleShipGame.address, player1);
+
+        // await BattleShipGame.lock([sig0, sig1]);
+        let battleshipWeb3Contract = new web32.eth.Contract(BattleShipGame.abi, BattleShipGame.address);
+        let lockTx = await battleshipWeb3Contract.methods.lock([sig0, sig1]).send({ from: player0, gas: 13000000 });
+        gasLib.push({ method: "lock", gasUsed: lockTx.gasUsed });
+        let channelOn = await BattleShipGame.statechannelon();
+        assert.equal(channelOn, true);
+        
+       
+
+        const stateChannelAddress = await BattleShipGame.stateChannel();
+        let BattleshipStateChannel = await StateChannel.at(stateChannelAddress);
+
+        const offChainGasLib = [];
+        const OffchainBattleship = await createGasProxy(BattleShipWithoutBoardInChannel, offChainGasLib, web32).new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address,
+            BattleShipGame.address
+        );
+
+         // move it off chain
+         
+         let offChainChannelCounter = await OffchainBattleship.channelCounter();
+        let offChainRound = await OffchainBattleship.round();
+         let offChainSig0 = await sigTools.hashAndSignLock(offChainChannelCounter, offChainRound, OffchainBattleship.address, player0);
+        let offChainSig1 = await sigTools.hashAndSignLock(offChainChannelCounter, offChainRound, OffchainBattleship.address, player1);
+
+         let offChainBattleshipWeb3Contract = new web32.eth.Contract(OffchainBattleship.abi, OffchainBattleship.address);
+         let offchainLockTx = await offChainBattleshipWeb3Contract.methods.lock([offChainSig0, offChainSig1]).send({ from: player0, gas: 13000000 });
+         const offchainStateChannelAddress = await OffchainBattleship.stateChannel();
+         let offChainBattleshipStateChannel = await StateChannel.at(offchainStateChannelAddress);
+
+         let dummyRandom = 1;
+         let onChainState = await BattleShipGame.getState(dummyRandom);
+        console.log(onChainState._h)
+        
+        let onChainHashStateWithAddress = sigTools.hashWithAddress(onChainState._h, OffchainBattleship.address);
+        console.log(onChainHashStateWithAddress)
+         // resolve coop
+         const dummyRound = 1;
+         const offchainPlayer0Sig = sigTools.chopUpSig(
+             await sigTools.hashAndSignClose(onChainHashStateWithAddress, dummyRound, offChainBattleshipStateChannel.address, player0)
+         );
+         const offchainPlayer1Sig = sigTools.chopUpSig(
+             await sigTools.hashAndSignClose(onChainHashStateWithAddress, dummyRound, offChainBattleshipStateChannel.address, player1)
+         );
+         // set state and close up
+        await offChainBattleshipStateChannel.close([...offchainPlayer0Sig, ...offchainPlayer1Sig], dummyRound, onChainHashStateWithAddress);
+        console.log("here")
+        let unlockOutput = await OffchainBattleship.unlock(
+            onChainState._bool,
+            onChainState._uints8,
+            onChainState._uints,
+            onChainState._winner,
+            onChainState._maps,
+            onChainState._shiphash,
+            onChainState._x1,
+            onChainState._y1,
+            onChainState._x2,
+            onChainState._y2,
+            onChainState._sunk,
+            { from: player0, gas: 3000000 }
+        );
+
+        console.log(unlockOutput.logs)
+        console.log("no here")
+        //assert.equal(true, false);
+         // ///////////////////////
+
+
+
+        // let offChainGameState = await setupGame(
+        //     OffchainBattleship,
+        //     player0,
+        //     player1,
+        //     constructBasicShips,
+        //     constructBasicShips
+        // );
+        let { winner } = await playThrough5x5(OffchainBattleship, player0, player1, gameState);
+
+        // now get the state and move it onto the state channel
+        
+        let {
+            _bool,
+            _uints8,
+            _uints,
+            _winner,
+            _maps,
+            _shiphash,
+            _x1,
+            _y1,
+            _x2,
+            _y2,
+            _sunk,
+            _h,
+            preHash
+        } = await OffchainBattleship.getState(dummyRandom);
+
+        // hash the offchain state with the address of the on chain battleship contract
+        let hashStateWithAddress = sigTools.hashWithAddress(_h, BattleShipGame.address);
+
+        // resolve coop
+        
+        const player0Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignClose(hashStateWithAddress, dummyRound, BattleshipStateChannel.address, player0)
+        );
+        const player1Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignClose(hashStateWithAddress, dummyRound, BattleshipStateChannel.address, player1)
+        );
+
+        // set state and close up
+        await BattleshipStateChannel.close([...player0Sig, ...player1Sig], dummyRound, hashStateWithAddress);
+
+        // unlock the offchain state
+        let output = await BattleShipGame.unlock(
+            _bool,
+            _uints8,
+            _uints,
+            _winner,
+            _maps,
+            _shiphash,
+            _x1,
+            _y1,
+            _x2,
+            _y2,
+            _sunk,
+            { from: player0, gas: 3000000 }
+        );
+        const unlockedWinner = await BattleShipGame.winner();
+        assert.equal(unlockedWinner, winner);
+
+        console.log("\t// FINALISE //");
+
+        console.log(`\twinner ${winner} opening ships`);
+        // get the ships
+
+        await openShips(BattleShipGame, winner, winner === player0 ? gameState.player0.ships : gameState.player1.ships);
+
+        console.log("\tfinish game");
+        await increaseTimeStamp(30);
+        await finishGame(BattleShipGame, winner);
+        console.log("\twinner withdraws");
+        await withdraw(BattleShipGame, winner, depositValue);
+
+        // console.log("\t// FINALISE //");
+        gasLibs.push({ test: "end-to-end-lock-unlock", gasLib });
+    });
+
+    it("battleship end-to-end with lock unlock midway exit", async () => {
+        if (!config.battleshipAndStateChannelMidwayExit) return;
+
+        console.log("\tconstruct");
+        const gasLib = [];
+        const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
+        const BattleShipGame = await BattleShipGamePre.new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+
+        // setup with basic boards
+        let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
+
+        // now lockup
+        let channelCounter = await BattleShipGame.channelCounter();
+        let round = await BattleShipGame.round();
+
+        let sig0 = await sigTools.hashAndSignLock(channelCounter, round, BattleShipGame.address, player0);
+        let sig1 = await sigTools.hashAndSignLock(channelCounter, round, BattleShipGame.address, player1);
+
+        // await BattleShipGame.lock([sig0, sig1]);
+        let battleshipWeb3Contract = new web32.eth.Contract(BattleShipGame.abi, BattleShipGame.address);
+        let lockTx = await battleshipWeb3Contract.methods.lock([sig0, sig1]).send({ from: player0, gas: 13000000 });
+        gasLib.push({ method: "lock", gasUsed: lockTx.gasUsed });
+        let channelOn = await BattleShipGame.statechannelon();
+        assert.equal(channelOn, true);
+
+        const stateChannelAddress = await BattleShipGame.stateChannel();
+        let BattleshipStateChannel = await StateChannel.at(stateChannelAddress);
+
+        const offChainGasLib = [];
+        const OffchainBattleship = await createGasProxy(BattleShipWithoutBoard, offChainGasLib, web32).new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+        let offChainGameState = await setupGame(
+            OffchainBattleship,
+            player0,
+            player1,
+            constructBasicShips,
+            constructBasicShips
+        );
+        let { winner } = await playThrough5x5(OffchainBattleship, player0, player1, gameState, false, false, 30);
+
+        // now get the state and move it onto the state channel
+        let dummyRandom = 1;
+        let {
+            _bool,
+            _uints8,
+            _uints,
+            _winner,
+            _maps,
+            _shiphash,
+            _x1,
+            _y1,
+            _x2,
+            _y2,
+            _sunk,
+            _h
+        } = await OffchainBattleship.getState(dummyRandom);
+        
+
+        // hash the offchain state with the address of the on chain battleship contract
+        let hashStateWithAddress = sigTools.hashWithAddress(_h, BattleShipGame.address);
+
+        // resolve coop
+        const dummyRound = 1;
+        const player0Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignClose(hashStateWithAddress, dummyRound, BattleshipStateChannel.address, player0)
+        );
+        const player1Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignClose(hashStateWithAddress, dummyRound, BattleshipStateChannel.address, player1)
+        );
+
+        // set state and close up
+        await BattleshipStateChannel.close([...player0Sig, ...player1Sig], dummyRound, hashStateWithAddress);
+
+        // unlock the offchain state
+        let output = await BattleShipGame.unlock(
+            _bool,
+            _uints8,
+            _uints,
+            _winner,
+            _maps,
+            _shiphash,
+            _x1,
+            _y1,
+            _x2,
+            _y2,
+            _sunk,
+            { from: player0, gas: 3000000 }
+        );
+        const onchainState = await BattleShipGame.getState(1);
+        const offchainState = await OffchainBattleship.getState(1);
+        assert.equal(offchainState._h, onchainState._h);
+
+        console.log("\t// FINALISE //");
+
+
+        // get the ships
+
+        // await openShips(BattleShipGame, winner, winner === player0 ? offChainGameState.player0.ships : offChainGameState.player1.ships);
+
+        // console.log("\tfinish game");
+        // await increaseTimeStamp(30);
+        // await finishGame(BattleShipGame, winner);
+        // console.log("\twinner withdraws");
+        // await withdraw(BattleShipGame, winner, depositValue);
+
+        // console.log("\t// FINALISE //");
+        gasLibs.push({ test: "end-to-end-lock-unlock-midway-exit", gasLib });
+    });
+
+    it("battleship lock unlock no update", async () => {
+        if (!config.battleshipNoUpdate) return;
+
+        console.log("\tconstruct");
+        const gasLib = [];
+        const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
+        const BattleShipGame = await BattleShipGamePre.new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+
+        // setup with basic boards
+        let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
+
+        // now lockup
+        let channelCounter = await BattleShipGame.channelCounter();
+        let round = await BattleShipGame.round();
+
+        let sig0 = await sigTools.hashAndSignLock(channelCounter, round, BattleShipGame.address, player0);
+        let sig1 = await sigTools.hashAndSignLock(channelCounter, round, BattleShipGame.address, player1);
+
+        // await BattleShipGame.lock([sig0, sig1]);
+        let battleshipWeb3Contract = new web32.eth.Contract(BattleShipGame.abi, BattleShipGame.address);
+        let lockTx = await battleshipWeb3Contract.methods.lock([sig0, sig1]).send({ from: player0, gas: 13000000 });
+        gasLib.push({ method: "lock", gasUsed: lockTx.gasUsed });
+        let channelOn = await BattleShipGame.statechannelon();
+        assert.equal(channelOn, true);
+
+        const stateChannelAddress = await BattleShipGame.stateChannel();
+        let BattleshipStateChannel = await StateChannel.at(stateChannelAddress);
+
+        // // set state and close up
+        await BattleshipStateChannel.triggerDispute({ from: player0 });
+
+        // pass some time
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+
+        //resolve
+        await BattleshipStateChannel.resolve({ from: player0 });
+
+        // unlock the offchain state
+        await BattleShipGame.unlockNoUpdate({ from: player0, gas: 3000000 });
+        let sChannelOn = await BattleShipGame.statechannelon();
+        assert.equal(sChannelOn, false);
+
+        gasLibs.push({ test: "unlock-no-update", gasLib });
+    });
+
+    it("fraud challenge period expired", async () => {
+        if (!config.fraudChallengePeriodExpired) return;
+        const gasLib = [];
+        const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
+        const BattleShipGame = await BattleShipGamePre.new(
+            player0,
+            player1,
+            // 0 challenge period to simulate time
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+
+        // setup with basic boards
+        let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
+
+        let move0 = await attackAndReveal(
+            BattleShipGame,
+            player0,
+            0,
+            0,
+            0,
+            player1,
+            gameState.player1.board,
+            gameState.player1.ships,
+            {}
+        );
+
+        // call the challenge expired
+        await increaseTimeStamp(30);
+        await increaseTimeStamp(30);
+        await BattleShipGame.fraudChallengeExpired();
+        let phase = await BattleShipGame.phase();
+        assert.equal(phase.toNumber(), Phase.Win);
+
+        gasLibs.push({ test: "fraud-challenge-period-expired", gasLib });
+    });
+
     it("simple test fraud ships same cell", async () => {
         if (!config.fraudShipsSameCell) return;
         console.log("\tconstruct");
@@ -530,7 +1095,8 @@ contract("BattleShips", function(accounts) {
         const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
             player0,
             player1,
-            timerChallenge
+            timerChallenge,
+            theStateChannelFactory.address
         );
 
         // player 0 puts all ships on top of each other, so player 1 will not be able to win
@@ -560,7 +1126,12 @@ contract("BattleShips", function(accounts) {
         console.log("\tconstruct");
         const gasLib = [];
         const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
-        const BattleShipGame = await BattleShipGamePre.new(player0, player1, timerChallenge);
+        const BattleShipGame = await BattleShipGamePre.new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
 
         // setup with basic boards
         let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
@@ -602,9 +1173,11 @@ contract("BattleShips", function(accounts) {
         console.log("\t// FINALISE //");
         // player 0 has no played at the same location twice, fraud
         console.log("player 1 calls fraudAttackSameCell");
-        await fraudAttackSameCell(contract, player1, move0.moveCtr, move2.moveCtr, x, y, move0.sig, move1.sig);
+
+        let fraud = await fraudAttackSameCell(BattleShipGame, player1, 0, 4, 0, 0, move0.attackSig, move2.attackSig);
+        gasLib.push(fraud);
         console.log("\twinner withdraws");
-        await withdraw(BattleShipGame, player1, depositValue);
+        // await withdraw(BattleShipGame, player1, depositValue);
 
         console.log("\t// FINALISE //");
         gasLibs.push({ test: "fraud-attack-same-cell", gasLib });
@@ -617,7 +1190,8 @@ contract("BattleShips", function(accounts) {
         const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
             player0,
             player1,
-            timerChallenge
+            timerChallenge,
+            theStateChannelFactory.address
         );
 
         // player 0 puts all ships on top of each other, so player 1 will not be able to win
@@ -650,12 +1224,13 @@ contract("BattleShips", function(accounts) {
         const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
             player0,
             player1,
-            timerChallenge
+            timerChallenge,
+            theStateChannelFactory.address
         );
 
         // player 0 puts all ships on top of each other, so player 1 will not be able to win
         // they should be able to commit a fraud proof after though
-        let gameState = await setupGame(BattleShipGame, player0, player1, constructSameCellShips, constructBasicShips);
+        let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
         let { winner, reveals } = await playThrough5x5(BattleShipGame, player0, player1, gameState, false, true);
 
         assert.equal(winner, player0);
@@ -667,9 +1242,8 @@ contract("BattleShips", function(accounts) {
 
         console.log("\tpresent fraud at move 3, 7, 11, 15, 19");
         let moves = [3, 7, 11, 15, 19];
-
-        await fraudDeclaredNotSunk(BattleShipGame, notWinner, 0, moves, moves.map(m => reveals[m].sig));
-        return;
+        let fraudMove = await fraudDeclaredNotSunk(BattleShipGame, notWinner, 0, moves, moves.map(m => reveals[m].sig));
+        gasLib.push(fraudMove);
 
         console.log("\tfinish game");
         console.log("\twinner withdraws");
@@ -697,9 +1271,13 @@ const Phase = Object.freeze({
 });
 
 const fraudAttackSameCell = async (contract, player, move1, move2, x, y, move1Sig, move2Sig) => {
-    await contract.fraudAttackSameCell(move1.moveCtr, move2.moveCtr, x, y, [move1Sig, move2Sig], { from: player });
+    let abiV2Battleship = new web32.eth.Contract(BattleShipWithoutBoard.abi, contract.address);
+    const attack = await abiV2Battleship.methods
+        .fraudAttackSameCell(move1, move2, x, y, [move1Sig, move2Sig])
+        .send({ from: player, gas: 13000000 });
     let phase = await contract.phase();
-    assert.equal(phase.toNumber(), Phase.Setup);
+    assert.equal(phase.toNumber(), Phase.Win);
+    return { method: "fraudAttackSameCell", gasUsed: attack.gasUsed };
 };
 
 const fraudShipsSameCell = async (contract, player, shipIndex1, shipIndex2, x, y) => {
@@ -717,10 +1295,15 @@ const fraudDeclaredNotHit = async (contract, player, shipIndex1, x, y, moveCtr, 
 };
 
 const fraudDeclaredNotSunk = async (contract, player, shipIndex, moves, signatures) => {
-    await contract.contract.methods.fraudDeclaredNotSunk(shipIndex, moves, signatures).send({ from: player });
-    // await contract.fraudDeclaredNotSunk(shipIndex, moves, signatures, { from: player, gas: 2000000 });
-    return;
+    let abiV2Battleship = new web32.eth.Contract(BattleShipWithoutBoard.abi, contract.address);
+
+    const fraud = await abiV2Battleship.methods
+        .fraudDeclaredNotSunk(shipIndex, moves, signatures)
+        .send({ from: player, gas: 3000000 });
+
     let phase = await contract.phase();
     // after fraud is declard we expect to have reset
     assert.equal(phase.toNumber(), Phase.Setup);
+
+    return { method: "fraudDeclaredNotSunk", gasUsed: fraud.gasUsed };
 };
