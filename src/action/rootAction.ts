@@ -2,7 +2,7 @@
 import * as TypesafeActions from "typesafe-actions";
 // TODO: remove circular dependency here
 import { Reveal, IMove } from "../store";
-import { Contract } from "web3/types";
+import { Contract } from "web3-eth-contract";
 import { IShip } from "./../entities/gameEntities";
 
 export enum ActionType {

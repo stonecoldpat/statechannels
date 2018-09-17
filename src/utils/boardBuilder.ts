@@ -5,7 +5,7 @@ import { committedShip } from "./shipTools";
 export class BoardBuilder {
     private static readonly shipSizes = [5, 4, 3, 3, 2];
     private static readonly alphabet = "abcde";
-    private static readonly random = "test_random";
+    private static readonly random = 66;
 
     static constructBasicShips(contractAddress: string, player: string, round: number) {
         const createArray = <T1>(size: number, elementCreator: () => T1): Array<T1> =>

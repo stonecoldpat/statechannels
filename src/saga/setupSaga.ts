@@ -2,6 +2,7 @@ import { takeEvery, select, call, put, fork, spawn } from "redux-saga/effects";
 import { Selector } from "./../store";
 import { ActionType, Action } from "./../action/rootAction";
 const BattleShipWithoutBoard = require("./../../build/contracts/BattleShipWithoutBoard.json");
+const StateChannelFactory = require("./../../build/contracts/StateChannelFactory.json");
 import { checkCurrentActionType } from "./checkCurrentActionType";
 const Web3Util = require("web3-utils");
 import { committedShips } from "./../utils/shipTools";
@@ -26,14 +27,29 @@ export function* deployBattleship(action: ReturnType<typeof Action.setupDeploy>)
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
 
+    // we need to deploy a state channel factory for use by the application
+    const stateChannelFactory = new web3.eth.Contract(StateChannelFactory.abi);
+    const deployedStateChannelFactory = yield call(
+        stateChannelFactory.deploy({
+            data: StateChannelFactory.bytecode,
+            arguments: []
+        }).send,
+        { from: player.address, gas: 10000000 }
+    );
+
     // we need the abi
     const contract = new web3.eth.Contract(BattleShipWithoutBoard.abi);
     const deployedContract: ReturnType<typeof Selector.battleshipContract> = yield call(
         contract.deploy({
             data: BattleShipWithoutBoard.bytecode,
-            arguments: [player.address, counterparty.address, action.payload.timerChallenge]
+            arguments: [
+                player.address,
+                counterparty.address,
+                action.payload.timerChallenge,
+                deployedStateChannelFactory.options.address
+            ]
         }).send,
-        { from: player.address, gas: 13000000 }
+        { from: player.address, gas: 14000000 }
     );
 
     // store the deployed contract, and pass the information to the counterparty
@@ -107,22 +123,22 @@ export function* storeShips(action: ReturnType<typeof Action.setupStoreShips>) {
         shipSizes,
         action.payload.ships.map(s => s.commitment),
         round,
-        counterparty.address
+        player.address
     );
     // TODO: ths section should be the other way round - i sign my own boards then pass them to the counterparty for submission
     // sign the commitment
     const web3: ReturnType<typeof Selector.web3> = yield select(Selector.web3);
     //  console.log(ships.commitment);
-    const commitmentSig = yield call(web3.eth.sign, ships.commitment, counterparty.address);
+    const commitmentSig = yield call(web3.eth.sign, ships.commitment, player.address);
 
     yield call(
         battleshipContract.methods.storeShips(shipSizes, action.payload.ships.map(s => s.commitment), commitmentSig)
             .send,
-        { from: player.address, gas: 2000000 }
+        { from: counterparty.address, gas: 2000000 }
     );
 
     // signal that the player is ready
-    yield call(readyToPlay)
+    yield call(readyToPlay);
 }
 
 // TODO: no error handling in any of the sagas
@@ -152,7 +168,7 @@ export function* opponentReadyToPlay() {
     // the opponent has signalled that they're ready to play
 
     // the store has already been updated
-    const player: ReturnType<typeof Selector.player> = yield select(Selector.player)
+    const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
     // are we ready to play as well?
     if (player.isReadyToPlay) {
         yield call(bothPlayersReady, player.goesFirst);

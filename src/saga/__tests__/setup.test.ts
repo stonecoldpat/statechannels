@@ -97,14 +97,14 @@ class TestBot {
         let i = 0;
 
         // TODO: this should be a class not a function
-        let gameState;
+        let gameState: GameState;
         let attackIterator;
         // we need to subscribe to the store to watch for certain events
         this.mUnsubsribe = store.subscribe(() => {
             if (this.complete) return;
 
             const state: IStore = store.getState();
-            console.log(state.currentActionType);
+            // console.log(state.currentActionType);
             switch (state.currentActionType) {
                 case ActionType.SETUP_STORE_SHIPS_AWAIT:
                     const contractAddress = state.game.battleshipContract!.options.address;
@@ -113,6 +113,7 @@ class TestBot {
                         this.player.address,
                         this.round
                     );
+
                     // TODO: should the game state, and the associated decisions be in the store?
                     // TODO: they could be, but they should be in a seperate part - as really a user should
                     // TODO: get to decide whatever game state they want
@@ -129,9 +130,24 @@ class TestBot {
                     break;
                 case ActionType.REVEAL_INPUT_AWAIT:
                     const latestMove = state.game.moves[state.game.moves.length - 1];
-                    const revealResult = gameState.squareState(latestMove.x, latestMove.y);
-                    console.log("reveal: ", revealResult);
-                    store.dispatch(Action.revealInput(revealResult));
+                    const revealResult = gameState.attackSquare(latestMove.x, latestMove.y);
+                    console.log("reveal: ", revealToString(revealResult.reveal));
+
+                    // TODO: ship index
+                    let action =
+                        revealResult.reveal === Reveal.Sink
+                            ? Action.revealInput(
+                                  revealResult.reveal,
+                                  revealResult.ship!.r,
+                                  revealResult.ship!.x1,
+                                  revealResult.ship!.y1,
+                                  revealResult.ship!.x2,
+                                  revealResult.ship!.y2,
+                                  revealResult.shipIndex
+                              )
+                            : Action.revealInput(revealResult.reveal);
+
+                    store.dispatch(action);
                     break;
                 case this.FINAL_STATE:
                     this.complete = true;
@@ -148,39 +164,69 @@ class TestBot {
     }
 }
 
+function revealToString(reveal: Reveal) {
+    switch (reveal) {
+        case Reveal.Hit:
+            return "hit";
+        case Reveal.Miss:
+            return "miss";
+        case Reveal.Sink:
+            return "sink";
+        default:
+            return "reveal state unknown " + reveal;
+    }
+}
+
+abstract class RevealResult {
+    constructor(readonly reveal: Reveal, readonly ship?: IShip, readonly shipIndex?: number) {}
+}
+
+class HitOrMissReveal extends RevealResult {
+    constructor(readonly reveal: Reveal.Hit | Reveal.Miss) {
+        super(reveal);
+    }
+}
+
+class SinkReveal extends RevealResult {
+    constructor(ship: IShip, shipIndex: number) {
+        super(Reveal.Sink, ship, shipIndex);
+    }
+}
+
 class GameState {
     constructor(readonly board: string[][], readonly ships: IShip[]) {}
 
-    public squareState(x: number, y: number): Reveal {
+    public attackSquare(x: number, y: number): RevealResult {
         /// lookup the position on the board. and find if it's a hit or miss
         const square = this.board[x][y];
         // TODO: magic strings here
-        if (square == "0") return Reveal.Miss;
+        if (square == "0") return new HitOrMissReveal(Reveal.Miss);
         else {
             // decide if it's a normal hit or a sink
 
             // find the ship with this id
             const ship = this.ships.filter(ship => ship.id === square)[0];
             if (!ship) throw new Error(`Could not find ship at position ${x}:${y}.`);
+            let index = this.ships.indexOf(ship);
 
             // increment the hits
             ship.hits++;
 
             // are the hits equal to the size of the ship?
-            return ship.hits === ship.size ? Reveal.Sink : Reveal.Hit;
+            return ship.hits === ship.size ? new SinkReveal(ship, index) : new HitOrMissReveal(Reveal.Hit);
         }
     }
 
-    x = 0;
-    y = 0;
-
     public *nextAttack() {
-        while (this.x < 10 && this.y < 10) {
-            yield { x: this.x, y: this.y };
-            this.x++;
-            if (this.x % 5 == 0) {
-                this.y++;
-                this.x = 0;
+        let x = 0;
+        let y = 0;
+
+        while (x < 10 && y < 10) {
+            yield { x: x, y: y };
+            y++;
+            if (y % 5 == 0) {
+                x++;
+                y = 0;
             }
         }
     }
@@ -218,13 +264,13 @@ describe("Saga setup", () => {
         store1.dispatch(actionSetupDeploy);
 
         while (!bot1.complete || !bot2.complete) {
-            if (Date.now() - timeStamp > 5000) throw new Error("exceeded timeout");
+            if (Date.now() - timeStamp > 10000) throw new Error("exceeded timeout");
             await delay(1000);
         }
 
         bot1.unsubscribe();
         bot2.unsubscribe();
-    }).timeout(5000);
+    }).timeout(10000);
 
     const delay = time =>
         new Promise(resolve => {

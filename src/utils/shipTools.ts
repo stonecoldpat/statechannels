@@ -36,7 +36,7 @@ export const committedShip = (
     y1: number,
     x2: number,
     y2: number,
-    r: string,
+    r: number,
     player: string,
     round: number,
     gameAddress: string

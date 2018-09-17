@@ -2,7 +2,7 @@ import { createStore, applyMiddleware, compose } from "redux";
 import createSagaMiddleware from "redux-saga";
 import rootSaga from "./saga/rootSaga";
 import reducer from "./reducer/rootReducer";
-import { Contract } from "web3/types";
+import { Contract } from "web3-eth-contract";
 import { Action, ActionType } from "./action/rootAction";
 import { IShip }  from "./entities/gameEntities"
 import Web3 = require("web3");
