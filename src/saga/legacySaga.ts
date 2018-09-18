@@ -104,8 +104,8 @@ function* attackReceiveBroadcastChannel(action: ReturnType<typeof Action.attackB
 
     // needs to be round and counter!
 
-    const battleshipContract: ReturnType<typeof Selector.battleshipContract> = yield select(
-        Selector.battleshipContract
+    const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
+        Selector.onChainBattleshipContract
     );
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
     // sign the x,y,move_ctr,round,address hash

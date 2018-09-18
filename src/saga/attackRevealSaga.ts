@@ -15,8 +15,8 @@ export default function* attackReveal() {
 
 export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
     // TODO: transition current action type to 'attacking' or something?
-    const battleshipContract: ReturnType<typeof Selector.battleshipContract> = yield select(
-        Selector.battleshipContract
+    const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
+        Selector.onChainBattleshipContract
     );
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
 
@@ -79,8 +79,8 @@ function* attackBroadcast(action: ReturnType<typeof Action.attackBroadcast>) {
 
 function* revealInput(action: ReturnType<typeof Action.revealInput>) {
     // reveal in the contract
-    const battleshipContract: ReturnType<typeof Selector.battleshipContract> = yield select(
-        Selector.battleshipContract
+    const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
+        Selector.onChainBattleshipContract
     );
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
     const latestMove: ReturnType<typeof Selector.latestMove> = yield select(Selector.latestMove);

@@ -22,10 +22,19 @@ export function generateStore(initialStore: IStore) {
 
 export class Selector {
     static readonly currentActionType = (store: IStore) => store.currentActionType;
-    static readonly battleshipContract = (store: IStore) => {
-        if (!store.game.battleshipContract) throw new Error("battleshipContract not populated");
-        return store.game.battleshipContract;
+    static readonly onChainBattleshipContract = (store: IStore) => {        
+        if (!store.game.onChainBattleshipContract) throw new Error("on chain battleshipContract not populated");
+        return store.game.onChainBattleshipContract;
     };
+    static readonly offChainBattleshipContract = (store: IStore) => {
+        if (!store.game.offChainBattleshipContract) throw new Error("off chain battleshipContract not populated");
+        return store.game.offChainBattleshipContract;
+    };
+    static readonly getBattleshipContractByAddress = (address : string) => (store: IStore) => {
+        if(store.game.onChainBattleshipContract && store.game.onChainBattleshipContract.options.address == address) return store.game.onChainBattleshipContract;
+        if(store.game.offChainBattleshipContract && store.game.offChainBattleshipContract.options.address == address) return store.game.offChainBattleshipContract;
+        throw new Error("no battleship contract found for address " + address);
+    }
     static readonly player = (store: IStore) => store.game.player;
     static readonly counterparty = (store: IStore) => store.opponent;
     static readonly web3 = (store: IStore) => store.web3;
@@ -46,7 +55,8 @@ export interface IStore {
 }
 
 export interface IGame {
-    battleshipContract?: Contract;
+    onChainBattleshipContract?: Contract;
+    offChainBattleshipContract?: Contract;
     player: IPlayer;
     moves: IMove[];
     // TODO: any
@@ -87,7 +97,15 @@ export interface ICounterpartyClient extends IPlayer {
     sendAttack(action: ReturnType<typeof Action.attackBroadcast>): void;
     sendReveal(action: ReturnType<typeof Action.revealBroadcast>): void;
     sendSig(action: ReturnType<typeof Action.attackAccept>);
+    sendRequestLockSig(action: ReturnType<typeof Action.requestLockSig>) : void;
+    sendLockSig(action: ReturnType<typeof Action.lockSig>) : void;
+    sendDeployOffChain(action: ReturnType<typeof Action.deployOffChain>): void
+    sendOffChainBattleshipAddress(action: ReturnType<typeof Action.offChainBattleshipAddress>): void
+    sendOffChainStateChannelAddress(action: ReturnType<typeof Action.offChainStateChannelAddress>): void
+    sendRequestStateSig(action: ReturnType<typeof Action.requestStateSig>): void
+    sendStateSig(action: ReturnType<typeof Action.stateSig>): void;
     sendContract(action: ReturnType<typeof Action.setupAddBattleshipAddress>);
     sendReadyToPlay();
-    contractAddress?: string;
+    offChainBattleshipAddress?: string;
+    offChainStateChannelAddress?: string;
 }

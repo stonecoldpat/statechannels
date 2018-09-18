@@ -37,17 +37,34 @@ const opponentReducer = (
         sendContract: () => {},
         sendReveal: () => {},
         sendSig: () => {},
+        sendRequestLockSig: () => {},
+        sendLockSig: () => {},
+        sendOffChainBattleshipAddress: () => {},
+        sendOffChainStateChannelAddress: () => {},
+        sendRequestStateSig: () => {},
+        sendStateSig: () => {},
+        sendDeployOffChain: () => {},
         sendReadyToPlay: () => {},
         address: "0xffcf8fdee72ac11b5c542428b35eef5769c409f0",
         isReadyToPlay: false,
         goesFirst: false
     },
     action
-) => {
+): ICounterpartyClient => {
     if (action.type === ActionType.SETUP_OPPONENT_READY_TO_PLAY) {
         return {
             ...state,
             isReadyToPlay: true
+        };
+    } else if (action.type === ActionType.OFF_CHAIN_BATTLESHIP_ADDRESS) {
+        return {
+            ...state,
+            offChainBattleshipAddress: action.payload.address
+        };
+    } else if (action.type === ActionType.OFF_CHAIN_STATECHANNEL_ADDRESS) {
+        return {
+            ...state,
+            offChainStateChannelAddress: action.payload.address
         };
     } else return state;
 };
@@ -65,8 +82,10 @@ const gameReducer = (
 ) => {
     if (action.type === ActionType.ATTACK_CREATE) {
         return { ...state, moves: [...state.moves, action.payload] };
-    } else if (action.type === ActionType.STORE_BATTLESHIP_CONTRACT) {
-        return { ...state, battleshipContract: action.payload.battleshipContract };
+    } else if (action.type === ActionType.STORE_ON_CHAIN_BATTLESHIP_CONTRACT) {
+        return { ...state, onChainBattleshipContract: action.payload.battleshipContract };
+    } else if (action.type === ActionType.STORE_OFF_CHAIN_BATTLESHIP_CONTRACT) {
+        return { ...state, offChainBattleshipContract: action.payload.battleshipContract };
     } else if (action.type === ActionType.SETUP_STORE_SHIPS) {
         return { ...state, ships: [action.payload.message] };
     } else if (action.type === ActionType.SETUP_READY_TO_PLAY) {

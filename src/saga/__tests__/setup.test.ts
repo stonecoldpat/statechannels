@@ -12,6 +12,7 @@ import { Action, ActionType } from "./../../action/rootAction";
 import { generateStore, IStore, IPlayer, Reveal } from "./../../store";
 import { IShip } from "./../../entities/gameEntities";
 import Web3 = require("web3");
+import { action } from "typesafe-actions";
 
 const shipSizes = [5, 4, 3, 3, 2];
 
@@ -33,6 +34,28 @@ const state1: IStore = {
             store2.dispatch(action);
         },
         sendSig: () => {},
+
+        sendRequestLockSig: (action: ReturnType<typeof Action.requestLockSig>) => {
+            store2.dispatch(action);
+        },
+        sendLockSig: (action: ReturnType<typeof Action.lockSig>) => {
+            store2.dispatch(action);
+        },
+        sendDeployOffChain: (action: ReturnType<typeof Action.deployOffChain>) => {
+            store2.dispatch(action);
+        },
+        sendOffChainBattleshipAddress: (action: ReturnType<typeof Action.offChainBattleshipAddress>) => {
+            store2.dispatch(action);
+        },
+        sendOffChainStateChannelAddress: (action: ReturnType<typeof Action.offChainStateChannelAddress>) => {
+            store2.dispatch(action);
+        },
+        sendRequestStateSig: (action: ReturnType<typeof Action.requestStateSig>) => {
+            store2.dispatch(action);
+        },
+        sendStateSig: (action: ReturnType<typeof Action.stateSig>) => {
+            store2.dispatch(action);
+        },
         sendContract: (action: ReturnType<typeof Action.setupAddBattleshipAddress>) => {
             store2.dispatch(action);
         },
@@ -65,6 +88,27 @@ const state2: IStore = {
             store1.dispatch(action);
         },
         sendSig: () => {},
+        sendRequestLockSig: (action: ReturnType<typeof Action.requestLockSig>) => {
+            store1.dispatch(action);
+        },
+        sendLockSig: (action: ReturnType<typeof Action.lockSig>) => {
+            store1.dispatch(action);
+        },
+        sendDeployOffChain: (action: ReturnType<typeof Action.deployOffChain>) => {
+            store1.dispatch(action);
+        },
+        sendOffChainBattleshipAddress: (action: ReturnType<typeof Action.offChainBattleshipAddress>) => {
+            store1.dispatch(action);
+        },
+        sendOffChainStateChannelAddress: (action: ReturnType<typeof Action.offChainStateChannelAddress>) => {
+            store1.dispatch(action);
+        },
+        sendRequestStateSig: (action: ReturnType<typeof Action.requestStateSig>) => {
+            store1.dispatch(action);
+        },
+        sendStateSig: (action: ReturnType<typeof Action.stateSig>) => {
+            store1.dispatch(action);
+        },
         sendContract: (action: ReturnType<typeof Action.setupAddBattleshipAddress>) => {
             store1.dispatch(action);
         },
@@ -107,7 +151,7 @@ class TestBot {
             // console.log(state.currentActionType);
             switch (state.currentActionType) {
                 case ActionType.SETUP_STORE_SHIPS_AWAIT:
-                    const contractAddress = state.game.battleshipContract!.options.address;
+                    const contractAddress = state.game.onChainBattleshipContract!.options.address;
                     const boardAndShips = BoardBuilder.constructBasicShips(
                         contractAddress,
                         this.player.address,

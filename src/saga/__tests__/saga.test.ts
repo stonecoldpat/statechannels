@@ -32,7 +32,6 @@ let counterparty: ICounterpartyClient = {
     sendReveal: () => {},
     sendContract: () => {},
     sendReadyToPlay: () => {},
-    contractAddress: "0x22d491bde2303f2f43325b2108d26f1eaba1e32b",
     address: "0xffcf8fdee72ac11b5c542428b35eef5769c409f0",
     isReadyToPlay: false,
     goesFirst: false
@@ -41,7 +40,7 @@ let counterparty: ICounterpartyClient = {
 let initialState: IStore = {
     currentActionType: ActionType.ATTACK_INPUT_AWAIT,
     game: {
-        battleshipContract: {
+        onChainBattleshipContract: {
             options: { address: "0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1" },
             methods: {
                 move_ctr: () => {

@@ -39,7 +39,7 @@ export function* deployBattleship(action: ReturnType<typeof Action.setupDeploy>)
 
     // we need the abi
     const contract = new web3.eth.Contract(BattleShipWithoutBoard.abi);
-    const deployedContract: ReturnType<typeof Selector.battleshipContract> = yield call(
+    const deployedContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield call(
         contract.deploy({
             data: BattleShipWithoutBoard.bytecode,
             arguments: [
@@ -53,7 +53,7 @@ export function* deployBattleship(action: ReturnType<typeof Action.setupDeploy>)
     );
 
     // store the deployed contract, and pass the information to the counterparty
-    yield put(Action.storeBattleshipContract(deployedContract));
+    yield put(Action.storeOnChainBattleshipContract(deployedContract));
     // TODO: should be a fork
     yield call(counterparty.sendContract, Action.setupAddBattleshipAddress(deployedContract.options.address));
 
@@ -68,7 +68,7 @@ export function* addBattleshipAddress(action: ReturnType<typeof Action.setupAddB
 
     // TODO: check the existance of the contract at this address?
     const contract = new web3.eth.Contract(BattleShipWithoutBoard.abi, action.payload.battleshipContractAddress);
-    yield put(Action.storeBattleshipContract(contract));
+    yield put(Action.storeOnChainBattleshipContract(contract));
 
     // move on to the deposit phase
     yield call(completeSetup);
@@ -90,8 +90,8 @@ export function* deposit(action: ReturnType<typeof Action.setupDeposit>) {
     // TODO: phase check
 
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    const battleshipContract: ReturnType<typeof Selector.battleshipContract> = yield select(
-        Selector.battleshipContract
+    const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
+        Selector.onChainBattleshipContract
     );
 
     yield call(battleshipContract.methods.deposit().send, { from: player.address, value: action.payload.amount });
@@ -99,8 +99,8 @@ export function* deposit(action: ReturnType<typeof Action.setupDeposit>) {
 
 export function* placeBet(action: ReturnType<typeof Action.setupPlaceBet>) {
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    const battleshipContract: ReturnType<typeof Selector.battleshipContract> = yield select(
-        Selector.battleshipContract
+    const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
+        Selector.onChainBattleshipContract
     );
 
     yield call(battleshipContract.methods.placeBet(action.payload.amount).send, { from: player.address });
@@ -109,8 +109,8 @@ export function* placeBet(action: ReturnType<typeof Action.setupPlaceBet>) {
 export function* storeShips(action: ReturnType<typeof Action.setupStoreShips>) {
     // TODO: check game phase
 
-    const battleshipContract: ReturnType<typeof Selector.battleshipContract> = yield select(
-        Selector.battleshipContract
+    const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
+        Selector.onChainBattleshipContract
     );
     const shipSizes: ReturnType<typeof Selector.shipSizes> = yield select(Selector.shipSizes);
     const round: ReturnType<typeof Selector.round> = yield select(Selector.round);
@@ -120,7 +120,7 @@ export function* storeShips(action: ReturnType<typeof Action.setupStoreShips>) {
     //create a commitment and update attack
     const ships = committedShips(
         battleshipContract.options.address,
-        shipSizes,
+    shipSizes,
         action.payload.ships.map(s => s.commitment),
         round,
         player.address
@@ -145,8 +145,8 @@ export function* storeShips(action: ReturnType<typeof Action.setupStoreShips>) {
 // TODO: no handling of failure midway through
 
 export function* readyToPlay() {
-    const battleshipContract: ReturnType<typeof Selector.battleshipContract> = yield select(
-        Selector.battleshipContract
+    const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
+        Selector.onChainBattleshipContract
     );
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
     yield call(battleshipContract.methods.readyToPlay().send, { from: player.address });
@@ -177,10 +177,13 @@ export function* opponentReadyToPlay() {
 
 export function* bothPlayersReady(playerGoesFirst: boolean) {
     if (playerGoesFirst) {
-        // transition to await attack
-        yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));
+        // lock up the contract
+        const battleshipContract : ReturnType<typeof Selector.onChainBattleshipContract> = yield select(Selector.onChainBattleshipContract);
+        yield put(Action.lock(battleshipContract.options.address));
+        // // transition to await attack
+        // yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));
     } else {
-        // transition to await attack accept
-        yield put(Action.updateCurrentActionType(ActionType.ATTACK_BROADCAST_AWAIT));
+        // // transition to await attack accept
+        // yield put(Action.updateCurrentActionType(ActionType.ATTACK_BROADCAST_AWAIT));
     }
 }

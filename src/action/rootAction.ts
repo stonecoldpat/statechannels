@@ -36,9 +36,20 @@ export enum ActionType {
     ADD_BATTLESHIP_ADDRESS = "ADD_BATTLESHIP_ADDRESS",
 
     /// STORE ////////////////////////////////////
-    STORE_BATTLESHIP_CONTRACT = "STORE_CONTRACT",
+    STORE_ON_CHAIN_BATTLESHIP_CONTRACT = "STORE_CONTRACT",
+    STORE_OFF_CHAIN_BATTLESHIP_CONTRACT = "STORE_OFF_CHAIN_CONTRACT",
     ATTACK_CREATE = "ATTACK_CREATE_OR_UPDATE",
-    UPDATE_CURRENT_ACTION_TYPE = "UPDATE_CURRENT_ACTION_TYPE"
+    UPDATE_CURRENT_ACTION_TYPE = "UPDATE_CURRENT_ACTION_TYPE",
+
+    /// STATE CHANNEL //////////////////////////////
+    LOCK = "LOCK",
+    REQUEST_LOCK_SIG = "REQUEST_LOCK_SIG",
+    LOCK_SIG = "LOCK_SIG",
+    DEPLOY_OFF_CHAIN = "DEPLOY_OFF_CHAIN",
+    OFF_CHAIN_BATTLESHIP_ADDRESS = "OFF_CHAIN_BATTLESHIP_ADDRESS",
+    OFF_CHAIN_STATECHANNEL_ADDRESS = "OFF_CHAIN_STATECHANNEL_ADDRESS",
+    REQUEST_STATE_SIG = "REQUEST_STATE_SIG",
+    STATE_SIG = "STATE_SIG"
 }
 
 const createAction = <P>(type: string, payload: P) => {
@@ -74,16 +85,31 @@ export const Action = {
         createAction(ActionType.ADD_BATTLESHIP_ADDRESS, { battleshipContractAddress }),
     setupDeposit: (amount: number) => createAction(ActionType.SETUP_DEPOSIT, { amount }),
     setupPlaceBet: (amount: number) => createAction(ActionType.SETUP_PLACE_BET, { amount }),
-    setupStoreShips: (ships: IShip[], board: string[][]) => createAction(ActionType.SETUP_STORE_SHIPS, { ships, board }),
+    setupStoreShips: (ships: IShip[], board: string[][]) =>
+        createAction(ActionType.SETUP_STORE_SHIPS, { ships, board }),
     // TODO: hack because we havent sorted out the proper nullabe type for payload, or use the typesafe-actions
     setupOpponentReadytoPlay: () => createAction(ActionType.SETUP_OPPONENT_READY_TO_PLAY, {}),
     setupReadyToPlay: (isReadyToPlay: boolean) => createAction(ActionType.SETUP_READY_TO_PLAY, { isReadyToPlay }),
 
     /// STORE /////////////////////////////////////////////
-    storeBattleshipContract: (battleshipContract: Contract) =>
-        createAction(ActionType.STORE_BATTLESHIP_CONTRACT, { battleshipContract }),
+    storeOnChainBattleshipContract: (battleshipContract: Contract) =>
+        createAction(ActionType.STORE_ON_CHAIN_BATTLESHIP_CONTRACT, { battleshipContract }),
+    storeOffChainBattleshipContract: (battleshipContract: Contract) =>
+        createAction(ActionType.STORE_OFF_CHAIN_BATTLESHIP_CONTRACT, { battleshipContract }),
     updateCurrentActionType: (actionType: ActionType) =>
-        createAction(ActionType.UPDATE_CURRENT_ACTION_TYPE, { actionType })
+        createAction(ActionType.UPDATE_CURRENT_ACTION_TYPE, { actionType }),
+
+    // STATE CHANNEL
+    lock: (address: string) => createAction(ActionType.LOCK, { address }),
+    requestLockSig: (address: string, channelCounter: number, round: number) => createAction(ActionType.REQUEST_LOCK_SIG, { address, round, channelCounter }),
+    lockSig: (address: string, sig: string) => createAction(ActionType.LOCK_SIG, { address, sig }),
+
+    deployOffChain: () => createAction(ActionType.DEPLOY_OFF_CHAIN, {}),
+    offChainBattleshipAddress: (address: string) => createAction(ActionType.OFF_CHAIN_BATTLESHIP_ADDRESS, { address }),
+    offChainStateChannelAddress: (address: string) =>
+        createAction(ActionType.OFF_CHAIN_STATECHANNEL_ADDRESS, { address }),
+    requestStateSig: () => createAction(ActionType.REQUEST_STATE_SIG, {}),
+    stateSig: (sig: string) => createAction(ActionType.STATE_SIG, { sig })
 };
 
 export type Action = TypesafeActions.ActionType<typeof Action>;
