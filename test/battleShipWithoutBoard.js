@@ -256,7 +256,16 @@ const recordHitAndTestForSink = (shipId, ships) => {
 };
 
 const testForHitAndReveal = async (contract, player, board, x, y, ships, currentSinks, overrides) => {
-    const hit = overrides && overrides.hitSupplied ? overrides.hit : board[x][y];
+    let hit;
+    if (overrides && overrides.hitSupplied) {
+        hit = overrides.hit;
+    } else if (overrides && overrides.invertBoardHitSupplied) {
+        
+        hit = board[x][4 - y];
+    } else {
+        hit = board[x][y];
+    }
+
     if (hit === 0) {
         // miss, reveal it
         const sig = await reveal(contract, player, x, y, false);
@@ -429,7 +438,7 @@ const attackAndReveal = async (
         y,
         revealPlayerShips,
         attackPlayerCurrentSinks,
-        (overrides.hitSupplied || overrides.sunkSupplied) && overrides
+        overrides
     );
     if (revealSink === "sink") {
         return { sink: true, attackSig };
@@ -446,7 +455,8 @@ const playThrough5x5 = async (
     gameState,
     neverRevealPlayer0,
     neverSinkPlayer0,
-    maxPlays
+    maxPlays,
+    invertRevealsPlayer0
 ) => {
     console.log("\t// PLAY //");
     let player0Sinks = 0;
@@ -455,10 +465,9 @@ const playThrough5x5 = async (
     const reveals = [];
     let plays = 0;
 
-
     for (x = 0; x < 5; x++) {
         for (y = 0; y < 5; y++) {
-            console.log(plays)
+            //console.log(plays);
             if (maxPlays && plays >= maxPlays) {
                 return {
                     winner,
@@ -489,7 +498,8 @@ const playThrough5x5 = async (
             let player0Overrides = {};
             if (neverRevealPlayer0) player0Overrides = { ...player0Overrides, ...{ hit: 0, hitSupplied: true } };
             if (neverSinkPlayer0) player0Overrides = { ...player0Overrides, ...{ sunk: false, sunkSupplied: true } };
-            
+            if (invertRevealsPlayer0) player0Overrides = { ...player0Overrides, ...{ invertBoardHitSupplied: true } };
+
             // now switch over and reveal the other player
             let player1Move = await attackAndReveal(
                 contract,
@@ -572,12 +582,13 @@ contract("BattleShips", function(accounts) {
         fraudShipsSameCell: false,
         fraudAttackSameCell: false,
         fraudDeclaredNotHit: false,
+        fraudDeclaredNotMiss: true,
         fraudDeclaredNotSunk: false,
         doNotPlay: false,
         stateChannelFactoryEndToEnd: false,
         stateChannelEndToEndDispute: false,
         stateChannelEndToEndCoop: false,
-        battleshipAndStateChannel: true,
+        battleshipAndStateChannel: false,
         fraudChallengePeriodExpired: false,
         battleshipNoUpdate: false,
         battleshipAndStateChannelMidwayExit: false
@@ -740,8 +751,6 @@ contract("BattleShips", function(accounts) {
         gasLib.push({ method: "lock", gasUsed: lockTx.gasUsed });
         let channelOn = await BattleShipGame.statechannelon();
         assert.equal(channelOn, true);
-        
-       
 
         const stateChannelAddress = await BattleShipGame.stateChannel();
         let BattleshipStateChannel = await StateChannel.at(stateChannelAddress);
@@ -755,35 +764,61 @@ contract("BattleShips", function(accounts) {
             BattleShipGame.address
         );
 
-         // move it off chain
-         
-         let offChainChannelCounter = await OffchainBattleship.channelCounter();
+        // move it off chain
+
+        let offChainChannelCounter = await OffchainBattleship.channelCounter();
         let offChainRound = await OffchainBattleship.round();
-         let offChainSig0 = await sigTools.hashAndSignLock(offChainChannelCounter, offChainRound, OffchainBattleship.address, player0);
-        let offChainSig1 = await sigTools.hashAndSignLock(offChainChannelCounter, offChainRound, OffchainBattleship.address, player1);
+        let offChainSig0 = await sigTools.hashAndSignLock(
+            offChainChannelCounter,
+            offChainRound,
+            OffchainBattleship.address,
+            player0
+        );
+        let offChainSig1 = await sigTools.hashAndSignLock(
+            offChainChannelCounter,
+            offChainRound,
+            OffchainBattleship.address,
+            player1
+        );
 
-         let offChainBattleshipWeb3Contract = new web32.eth.Contract(OffchainBattleship.abi, OffchainBattleship.address);
-         let offchainLockTx = await offChainBattleshipWeb3Contract.methods.lock([offChainSig0, offChainSig1]).send({ from: player0, gas: 13000000 });
-         const offchainStateChannelAddress = await OffchainBattleship.stateChannel();
-         let offChainBattleshipStateChannel = await StateChannel.at(offchainStateChannelAddress);
+        let offChainBattleshipWeb3Contract = new web32.eth.Contract(OffchainBattleship.abi, OffchainBattleship.address);
+        let offchainLockTx = await offChainBattleshipWeb3Contract.methods
+            .lock([offChainSig0, offChainSig1])
+            .send({ from: player0, gas: 13000000 });
+        const offchainStateChannelAddress = await OffchainBattleship.stateChannel();
+        let offChainBattleshipStateChannel = await StateChannel.at(offchainStateChannelAddress);
 
-         let dummyRandom = 1;
-         let onChainState = await BattleShipGame.getState(dummyRandom);
-        console.log(onChainState._h)
-        
+        let dummyRandom = 1;
+        let onChainState = await BattleShipGame.getState(dummyRandom);
+        console.log(onChainState._h);
+
         let onChainHashStateWithAddress = sigTools.hashWithAddress(onChainState._h, OffchainBattleship.address);
-        console.log(onChainHashStateWithAddress)
-         // resolve coop
-         const dummyRound = 1;
-         const offchainPlayer0Sig = sigTools.chopUpSig(
-             await sigTools.hashAndSignClose(onChainHashStateWithAddress, dummyRound, offChainBattleshipStateChannel.address, player0)
-         );
-         const offchainPlayer1Sig = sigTools.chopUpSig(
-             await sigTools.hashAndSignClose(onChainHashStateWithAddress, dummyRound, offChainBattleshipStateChannel.address, player1)
-         );
-         // set state and close up
-        await offChainBattleshipStateChannel.close([...offchainPlayer0Sig, ...offchainPlayer1Sig], dummyRound, onChainHashStateWithAddress);
-        console.log("here")
+        console.log(onChainHashStateWithAddress);
+        // resolve coop
+        const dummyRound = 1;
+        const offchainPlayer0Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignClose(
+                onChainHashStateWithAddress,
+                dummyRound,
+                offChainBattleshipStateChannel.address,
+                player0
+            )
+        );
+        const offchainPlayer1Sig = sigTools.chopUpSig(
+            await sigTools.hashAndSignClose(
+                onChainHashStateWithAddress,
+                dummyRound,
+                offChainBattleshipStateChannel.address,
+                player1
+            )
+        );
+        // set state and close up
+        await offChainBattleshipStateChannel.close(
+            [...offchainPlayer0Sig, ...offchainPlayer1Sig],
+            dummyRound,
+            onChainHashStateWithAddress
+        );
+        console.log("here");
         let unlockOutput = await OffchainBattleship.unlock(
             onChainState._bool,
             onChainState._uints8,
@@ -799,12 +834,10 @@ contract("BattleShips", function(accounts) {
             { from: player0, gas: 3000000 }
         );
 
-        console.log(unlockOutput.logs)
-        console.log("no here")
+        console.log(unlockOutput.logs);
+        console.log("no here");
         //assert.equal(true, false);
-         // ///////////////////////
-
-
+        // ///////////////////////
 
         // let offChainGameState = await setupGame(
         //     OffchainBattleship,
@@ -816,7 +849,7 @@ contract("BattleShips", function(accounts) {
         let { winner } = await playThrough5x5(OffchainBattleship, player0, player1, gameState);
 
         // now get the state and move it onto the state channel
-        
+
         let {
             _bool,
             _uints8,
@@ -837,7 +870,7 @@ contract("BattleShips", function(accounts) {
         let hashStateWithAddress = sigTools.hashWithAddress(_h, BattleShipGame.address);
 
         // resolve coop
-        
+
         const player0Sig = sigTools.chopUpSig(
             await sigTools.hashAndSignClose(hashStateWithAddress, dummyRound, BattleshipStateChannel.address, player0)
         );
@@ -948,7 +981,6 @@ contract("BattleShips", function(accounts) {
             _sunk,
             _h
         } = await OffchainBattleship.getState(dummyRandom);
-        
 
         // hash the offchain state with the address of the on chain battleship contract
         let hashStateWithAddress = sigTools.hashWithAddress(_h, BattleShipGame.address);
@@ -985,7 +1017,6 @@ contract("BattleShips", function(accounts) {
         assert.equal(offchainState._h, onchainState._h);
 
         console.log("\t// FINALISE //");
-
 
         // get the ships
 
@@ -1183,6 +1214,39 @@ contract("BattleShips", function(accounts) {
         gasLibs.push({ test: "fraud-attack-same-cell", gasLib });
     });
 
+    it("simple test fraud declared not miss", async () => {
+        if (!config.fraudDeclaredNotMiss) return;
+        console.log("\tconstruct");
+        const gasLib = [];
+        const BattleShipGame = await createGasProxy(BattleShipWithoutBoard, gasLib, web32).new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+
+        // player 0 inverts their board when revealing, this means they sometimes declare things as a hit which should be a miss
+        let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
+        let { winner, reveals } = await playThrough5x5(BattleShipGame, player0, player1, gameState, false, true, 400, true);
+        assert.equal(winner, player0);
+        console.log("\t// FINALISE //");
+
+        let notWinner = winner === player0 ? player1 : player0;
+        console.log(`\twinner ${winner} opening ships`);
+        await openShips(BattleShipGame, winner, winner === player0 ? gameState.player0.ships : gameState.player1.ships);
+
+        // move 39, (1, 4) was declared as a hit, but should be a miss
+        console.log("\tpresent fraud at move 39");
+        await fraudDeclaredNotMiss(BattleShipGame, notWinner, 1, 4, 39, reveals[39].sig);
+
+        console.log("\tfinish game");
+        console.log("\twinner withdraws");
+        await withdraw(BattleShipGame, notWinner, depositValue);
+
+        console.log("\t// FINALISE //");
+        gasLibs.push({ test: "fraud-declared-not-miss", gasLib });
+    });
+
     it("simple test fraud declared not hit", async () => {
         if (!config.fraudDeclaredNotHit) return;
         console.log("\tconstruct");
@@ -1289,6 +1353,15 @@ const fraudShipsSameCell = async (contract, player, shipIndex1, shipIndex2, x, y
 
 const fraudDeclaredNotHit = async (contract, player, shipIndex1, x, y, moveCtr, signature) => {
     await contract.fraudDeclaredNotHit(shipIndex1, x, y, moveCtr, signature, { from: player });
+    let phase = await contract.phase();
+    // after fraud is declard we expect to have reset
+    assert.equal(phase.toNumber(), Phase.Setup);
+};
+
+const fraudDeclaredNotMiss = async (contract, player, x, y, moveCtr, signature) => {
+    let face = await contract.fraudDeclaredNotMiss(x, y, moveCtr, signature, { from: player });
+    console.log("logs", face.logs)
+
     let phase = await contract.phase();
     // after fraud is declard we expect to have reset
     assert.equal(phase.toNumber(), Phase.Setup);
