@@ -94,7 +94,7 @@ contract BattleShipWithoutBoardInChannel {
     // List of ship information (hash, co-ordinates, etc)
     // "r" is the random nonce, agreed by both parties. 
     // Have all parties agreed to unlock this contract? 
-    function unlock(bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk) public disableForPrivateNetwork {
+    function unlock(bool[6] _bool, uint8[2] _uints8, uint[6] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk) public disableForPrivateNetwork {
         // "round" is included in _uints
         bytes32 _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, _shiphash, _x1, _y1, _x2, _y2, _sunk));
         _h = keccak256(abi.encodePacked(_h, address(this)));        
@@ -120,7 +120,12 @@ contract BattleShipWithoutBoardInChannel {
         totalShipPositions = _uints[2];
         turn = _uints[3]; 
         phase = GamePhase(_uints[4]);
-        challengeTime = _uints[5];
+        // we dont include challengetime in the supplied state here, or as part of getState
+        // as these timers would need to be synchronised to be synchronised between offchain
+        // instances of the battleship contract. This means that challengetime cannot be enforced
+        // offchain - channel participants will have to triggerdispute if updates are occuring too
+        // slowly.
+        challengeTime = now + timer_challenge;
         
         // Store Winner
         winner = _winner;
@@ -159,7 +164,7 @@ contract BattleShipWithoutBoardInChannel {
     
     
     // Only required in the PRIVATE contract. Not required in the public / ethereum contract. 
-    function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[7] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk, bytes32 _h) {
+    function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[6] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk, bytes32 _h) {
             
         // Store the "_ready" variables 
         _bool[0] = playerShipsReceived[0]; 
@@ -177,8 +182,7 @@ contract BattleShipWithoutBoardInChannel {
         _uints[2] = totalShipPositions;
         _uints[3] = turn;
         _uints[4] = uint(phase);
-        _uints[5] = challengeTime; 
-        _uints[6] = r;
+        _uints[5] = r;
             
         // Store Winner
         _winner = winner;
@@ -407,7 +411,7 @@ contract BattleShipWithoutBoardInChannel {
         // Entire game must be reset. 
         reset();
     }
-    
+
     // Player picks a slot position to attack. 
     // Must be completed within a time period 
     function attack(uint8 _x, uint8 _y, bytes _signature) public disableForStateChannel onlyState(GamePhase.Attack) {

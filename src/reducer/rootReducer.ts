@@ -1,6 +1,6 @@
 import { combineReducers } from "redux";
 import { ActionType, Action } from "./../action/rootAction";
-import { IMove, IGame, ICounterpartyClient } from "./../store";
+import { IMove, IGame, ICounterpartyClient, PlayerStage, Reveal } from "./../entities/gameEntities";
 import Web3 = require("web3");
 const defaultWeb3 = new Web3("ws://localhost:8545");
 
@@ -43,18 +43,19 @@ const opponentReducer = (
         sendOffChainStateChannelAddress: () => {},
         sendRequestStateSig: () => {},
         sendStateSig: () => {},
+        sendAction: () => {},
         sendDeployOffChain: () => {},
-        sendReadyToPlay: () => {},
+        sendStageUpdate: () => {},
         address: "0xffcf8fdee72ac11b5c542428b35eef5769c409f0",
-        isReadyToPlay: false,
+        stage: PlayerStage.NONE,
         goesFirst: false
     },
     action
 ): ICounterpartyClient => {
-    if (action.type === ActionType.SETUP_OPPONENT_READY_TO_PLAY) {
+    if (action.type === ActionType.COUNTERPARTY_STAGE_UPDATE) {
         return {
             ...state,
-            isReadyToPlay: true
+            stage: action.payload.stage
         };
     } else if (action.type === ActionType.OFF_CHAIN_BATTLESHIP_ADDRESS) {
         return {
@@ -74,7 +75,7 @@ const moves: IMove[] = [];
 // TODO: Initialise here instead of in the preloaded state?
 const gameReducer = (
     state: IGame = {
-        player: { address: "never should show", isReadyToPlay: false, goesFirst: false },
+        player: { address: "never should show", stage: PlayerStage.NONE, goesFirst: false },
         moves,
         round: 0
     },
@@ -88,8 +89,8 @@ const gameReducer = (
         return { ...state, offChainBattleshipContract: action.payload.battleshipContract };
     } else if (action.type === ActionType.SETUP_STORE_SHIPS) {
         return { ...state, ships: [action.payload.message] };
-    } else if (action.type === ActionType.SETUP_READY_TO_PLAY) {
-        return { ...state, player: { ...state.player, isReadyToPlay: action.payload.isReadyToPlay } };
+    } else if (action.type === ActionType.STAGE_UPDATE) {
+        return { ...state, player: { ...state.player, stage: action.payload.stage } };
     } else return state;
 };
 

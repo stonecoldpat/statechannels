@@ -1,2 +1,0 @@
-1. Enable the battleship contract to update after triggerdispute(), resolve() but no setstate()
-2. Change getstate not hash the address as part of it

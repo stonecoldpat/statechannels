@@ -31,7 +31,7 @@ let counterparty: ICounterpartyClient = {
     sendSig: () => {},
     sendReveal: () => {},
     sendContract: () => {},
-    sendReadyToPlay: () => {},
+    sendStageUpdate: () => {},
     address: "0xffcf8fdee72ac11b5c542428b35eef5769c409f0",
     isReadyToPlay: false,
     goesFirst: false

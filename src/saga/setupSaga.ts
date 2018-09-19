@@ -1,5 +1,6 @@
 import { takeEvery, select, call, put, fork, spawn } from "redux-saga/effects";
 import { Selector } from "./../store";
+import { PlayerStage } from "./../entities/gameEntities";
 import { ActionType, Action } from "./../action/rootAction";
 const BattleShipWithoutBoard = require("./../../build/contracts/BattleShipWithoutBoard.json");
 const StateChannelFactory = require("./../../build/contracts/StateChannelFactory.json");
@@ -14,7 +15,7 @@ export default function* setup() {
     yield takeEvery(ActionType.SETUP_DEPLOY, deployBattleship);
     yield takeEvery(ActionType.ADD_BATTLESHIP_ADDRESS, addBattleshipAddress);
     yield takeEvery(ActionType.SETUP_STORE_SHIPS, storeShips);
-    yield takeEvery(ActionType.SETUP_OPPONENT_READY_TO_PLAY, opponentReadyToPlay);
+    yield takeEvery(ActionType.COUNTERPARTY_STAGE_UPDATE, counterpartyStageUpdate);
 }
 
 // deploy a game
@@ -120,7 +121,7 @@ export function* storeShips(action: ReturnType<typeof Action.setupStoreShips>) {
     //create a commitment and update attack
     const ships = committedShips(
         battleshipContract.options.address,
-    shipSizes,
+        shipSizes,
         action.payload.ships.map(s => s.commitment),
         round,
         player.address
@@ -151,34 +152,47 @@ export function* readyToPlay() {
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
     yield call(battleshipContract.methods.readyToPlay().send, { from: player.address });
     // success, record that we were able to
-    yield put(Action.setupReadyToPlay(true));
+    yield put(Action.stageUpdate(PlayerStage.READY_TO_PLAY));
 
     // signal to the counterparty that we are ready to play
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
-    yield call(counterparty.sendReadyToPlay);
+    yield call(counterparty.sendStageUpdate, Action.counterpartyStageUpdate(PlayerStage.READY_TO_PLAY));
 
     // also check to see if the counteryparty is already ready to play, if so then we're ready to start
-    if (counterparty.isReadyToPlay) {
-        yield call(bothPlayersReady, player.goesFirst);
+    if (counterparty.stage === PlayerStage.READY_TO_PLAY) {
+        yield call(bothPlayersReadyToPlay, player.goesFirst);
     }
     // else, do nothing, when the counterparty is ready we'll try to set state again
 }
 
-export function* opponentReadyToPlay() {
-    // the opponent has signalled that they're ready to play
-
-    // the store has already been updated
+export function* counterpartyStageUpdate(action: ReturnType<typeof Action.counterpartyStageUpdate>) {
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    // are we ready to play as well?
-    if (player.isReadyToPlay) {
-        yield call(bothPlayersReady, player.goesFirst);
+    switch (action.payload.stage) {
+        case PlayerStage.READY_TO_PLAY: {
+            if (player.stage === PlayerStage.READY_TO_PLAY) {
+                // both players are ready
+                yield call(bothPlayersReadyToPlay, player.goesFirst);
+            }
+            break;
+        }
+        case PlayerStage.READY_TO_PLAY_OFFCHAIN: {
+            if (player.stage === PlayerStage.READY_TO_PLAY_OFFCHAIN) {
+                // both players ready offline
+                yield put( { type: ActionType.BOTH_PLAYERS_READY_OFF_CHAIN })
+            }
+            break;
+        }
+        default:
+            throw new Error("Unknown stage: " + action.payload.stage);
     }
 }
 
-export function* bothPlayersReady(playerGoesFirst: boolean) {
+export function* bothPlayersReadyToPlay(playerGoesFirst: boolean) {
     if (playerGoesFirst) {
         // lock up the contract
-        const battleshipContract : ReturnType<typeof Selector.onChainBattleshipContract> = yield select(Selector.onChainBattleshipContract);
+        const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
+            Selector.onChainBattleshipContract
+        );
         yield put(Action.lock(battleshipContract.options.address));
         // // transition to await attack
         // yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));

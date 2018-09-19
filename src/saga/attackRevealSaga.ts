@@ -4,13 +4,11 @@ import { Contract } from "web3-eth-contract";
 import Web3 = require("web3");
 import { BigNumber } from "bignumber.js";
 import Web3Util from "web3-utils";
-import { Selector, Reveal } from "../store";
+import { Selector } from "../store";
+import { Reveal } from "./../entities/gameEntities";
 
 export default function* attackReveal() {
-    yield takeEvery(ActionType.ATTACK_INPUT, attackInput);
-    yield takeEvery(ActionType.ATTACK_BROADCAST, attackBroadcast);
-    yield takeEvery(ActionType.REVEAL_INPUT, revealInput);
-    yield takeEvery(ActionType.REVEAL_BROADCAST, revealBroadcast);
+    // TODO: remove this
 }
 
 export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
@@ -50,7 +48,13 @@ export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
     // inform the opponent
     // TODO: it isnt strictly necessary to have any communication during the blockchain phase
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
-    const attackBroadcastAction = Action.attackBroadcast(action.payload.x, action.payload.y, hashState, hashStateSig);
+    const attackBroadcastAction = Action.attackBroadcast(
+        action.payload.x,
+        action.payload.y,
+        sig,
+        hashState,
+        hashStateSig
+    );
 
     yield call(counterparty.sendAttack, attackBroadcastAction);
 
@@ -60,16 +64,21 @@ export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
     // TODO: all "call" can throw errors
 }
 
-function* attackBroadcast(action: ReturnType<typeof Action.attackBroadcast>) {
+export function* attackBroadcast(action: ReturnType<typeof Action.attackBroadcast>) {
     // store the attack locally
     yield put(
         Action.attackCreate({
             x: action.payload.x,
             y: action.payload.y,
+            // TODO: hack below -get actual values
+            moveCtr: 0,
+            round: 0,
             hashState: action.payload.hashState,
+            attackSig: action.payload.onChainAttackSig,
+            // TODO: hack below, needs removing
+            channelSig: ""
             // TODO: this should be the counterparty sig!
             //hashStateCounterPartySig: action.payload.hashStateSig
-            hashStateSig: action.payload.hashStateSig
         })
     );
 
@@ -77,7 +86,7 @@ function* attackBroadcast(action: ReturnType<typeof Action.attackBroadcast>) {
     yield put(Action.updateCurrentActionType(ActionType.REVEAL_INPUT_AWAIT));
 }
 
-function* revealInput(action: ReturnType<typeof Action.revealInput>) {
+export function* revealInput(action: ReturnType<typeof Action.revealInput>) {
     // reveal in the contract
     const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
         Selector.onChainBattleshipContract
@@ -146,13 +155,23 @@ function* revealInput(action: ReturnType<typeof Action.revealInput>) {
     yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));
 }
 
-function* revealBroadcast(action: ReturnType<typeof Action.revealBroadcast>) {
+export function* revealBroadcast(action: ReturnType<typeof Action.revealBroadcast>) {
     // they've reveal to us, lets transition to awaiting an attack broadcast
     //
     // TODO: no need to update the current action type atm - just make a record of the reveal
 }
 
-function* hashAndSignAttack(
+export function hashAttack(x: number, y: number, moveCtr: BigNumber, round: BigNumber, contractAddress: string) {
+    return Web3Util.soliditySha3(
+        { t: "uint8", v: x },
+        { t: "uint8", v: y },
+        { t: "uint", v: moveCtr },
+        { t: "uint", v: round },
+        { t: "address", v: contractAddress }
+    );
+}
+
+export function* hashAndSignAttack(
     x: number,
     y: number,
     moveCtr: BigNumber,
@@ -161,20 +180,30 @@ function* hashAndSignAttack(
     contractAddress: string,
     web3: Web3
 ) {
-    const attackHash = Web3Util.soliditySha3(
+    const attackHash = hashAttack(x, y, moveCtr, round, contractAddress);
+    const sig = yield call(web3.eth.sign, attackHash, playerAddress);
+    return sig;
+}
+
+export function hashReveal(
+    x: number,
+    y: number,
+    moveCtr: BigNumber | number,
+    round: BigNumber | number,
+    hit: Boolean,
+    contractAddress: string
+) {
+    return Web3Util.soliditySha3(
         { t: "uint8", v: x },
         { t: "uint8", v: y },
+        { t: "bool", v: hit },
         { t: "uint", v: moveCtr },
         { t: "uint", v: round },
         { t: "address", v: contractAddress }
     );
-
-    const sig = yield call(web3.eth.sign, attackHash, playerAddress);
-
-    return sig;
 }
 
-function* hashAndSignReveal(
+export function* hashAndSignReveal(
     x: number,
     y: number,
     moveCtr: BigNumber,
@@ -184,20 +213,35 @@ function* hashAndSignReveal(
     contractAddress: string,
     web3: Web3
 ) {
-    const revealHash = Web3Util.soliditySha3(
-        { t: "uint8", v: x },
-        { t: "uint8", v: y },
-        { t: "bool", v: hit },
+    const revealHash = hashReveal(x, y, moveCtr, round, hit, contractAddress);
+    return yield call(web3.eth.sign, revealHash, player);
+}
+
+export function hashRevealSunk(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    r: number,
+    moveCtr: BigNumber,
+    round: BigNumber,
+    shipIndex: number,
+    contractAddress: string
+) {
+    return Web3Util.soliditySha3(
+        { t: "uint8", v: x1 },
+        { t: "uint8", v: y1 },
+        { t: "uint8", v: x2 },
+        { t: "uint8", v: y2 },
+        { t: "uint", v: r },
+        { t: "uint", v: shipIndex },
         { t: "uint", v: moveCtr },
         { t: "uint", v: round },
         { t: "address", v: contractAddress }
     );
-
-    const sig = yield call(web3.eth.sign, revealHash, player);
-    return sig;
 }
 
-function* hashAndSignRevealSunk(
+export function* hashAndSignRevealSunk(
     x1: number,
     y1: number,
     x2: number,
@@ -210,19 +254,8 @@ function* hashAndSignRevealSunk(
     contractAddress: string,
     web3: Web3
 ) {
-    const revealHash = Web3Util.soliditySha3(
-        { t: "uint8", v: x1 },
-        { t: "uint8", v: y1 },
-        { t: "uint8", v: x2 },
-        { t: "uint8", v: y2 },
-        { t: "uint", v: r },
-        { t: "uint", v: shipIndex },
-        { t: "uint", v: moveCtr },
-        { t: "uint", v: round },
-        { t: "address", v: contractAddress }
-    );
-    const sig = yield call(web3.eth.sign, revealHash, player);
-    return sig;
+    const revealHash = hashRevealSunk(x1, y1, x2, y2, r, moveCtr, round, shipIndex, contractAddress);
+    return yield call(web3.eth.sign, revealHash, player);
 }
 
 function* attackApplyAndGetHashState(

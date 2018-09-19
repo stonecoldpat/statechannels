@@ -9,8 +9,8 @@ import { BoardBuilder } from "../../utils/boardBuilder";
 
 import { deployBattleship } from "./../setupSaga";
 import { Action, ActionType } from "./../../action/rootAction";
-import { generateStore, IStore, IPlayer, Reveal } from "./../../store";
-import { IShip } from "./../../entities/gameEntities";
+import { IShip, IStore, IPlayer, Reveal, PlayerStage } from "./../../entities/gameEntities";
+import { generateStore } from "./../../store";
 import Web3 = require("web3");
 import { action } from "typesafe-actions";
 
@@ -21,7 +21,7 @@ const state1: IStore = {
     currentActionType: ActionType.SETUP_DEPLOY_AWAIT,
     web3: new Web3("ws://localhost:8545"),
     game: {
-        player: { address: "0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1", isReadyToPlay: false, goesFirst: true },
+        player: { address: "0x90f8bf6a479f320ead074411a4b0e7944ea8c9c1", stage: PlayerStage.NONE, goesFirst: true },
         moves: [],
         round: 0
     },
@@ -59,10 +59,13 @@ const state1: IStore = {
         sendContract: (action: ReturnType<typeof Action.setupAddBattleshipAddress>) => {
             store2.dispatch(action);
         },
-        sendReadyToPlay: () => {
-            store2.dispatch(Action.setupOpponentReadytoPlay());
+        sendAction: (action ) => {
+            store2.dispatch(action)
         },
-        isReadyToPlay: false,
+        sendStageUpdate: (action: ReturnType<typeof Action.counterpartyStageUpdate>) => {
+            store2.dispatch(action);
+        },
+        stage: PlayerStage.NONE,
         goesFirst: false
     },
     shipSizes
@@ -74,7 +77,7 @@ const state2: IStore = {
     currentActionType: ActionType.SETUP_DEPLOY_AWAIT,
     web3: new Web3("ws://localhost:8545"),
     game: {
-        player: { address: "0xffcf8fdee72ac11b5c542428b35eef5769c409f0", isReadyToPlay: false, goesFirst: false },
+        player: { address: "0xffcf8fdee72ac11b5c542428b35eef5769c409f0", stage: PlayerStage.NONE, goesFirst: false },
         moves: [],
         round: 0
     },
@@ -109,13 +112,16 @@ const state2: IStore = {
         sendStateSig: (action: ReturnType<typeof Action.stateSig>) => {
             store1.dispatch(action);
         },
+        sendAction: (action) => {
+            store1.dispatch(action)
+        },
         sendContract: (action: ReturnType<typeof Action.setupAddBattleshipAddress>) => {
             store1.dispatch(action);
         },
-        sendReadyToPlay: () => {
-            store1.dispatch(Action.setupOpponentReadytoPlay());
+        sendStageUpdate: (action) => {
+            store1.dispatch(action);
         },
-        isReadyToPlay: false,
+        stage: PlayerStage.NONE,
         goesFirst: true
     },
     shipSizes

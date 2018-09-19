@@ -1,9 +1,8 @@
 //  import { ActionsUnion, createAction } from "@martin_hotell/rex-tils";
 import * as TypesafeActions from "typesafe-actions";
 // TODO: remove circular dependency here
-import { Reveal, IMove } from "../store";
 import { Contract } from "web3-eth-contract";
-import { IShip } from "./../entities/gameEntities";
+import { IShip, Reveal, IMove, PlayerStage, IStateChannelUpdate } from "./../entities/gameEntities";
 
 export enum ActionType {
     // input from a user
@@ -31,8 +30,6 @@ export enum ActionType {
     SETUP_PLACE_BET = "SETUP_PLACE_BET",
     SETUP_STORE_SHIPS_AWAIT = "SETUP_AWAIT_SHIPS",
     SETUP_STORE_SHIPS = "SETUP_STORE_SHIPS",
-    SETUP_READY_TO_PLAY = "SETUP_READY_TO_PLAY",
-    SETUP_OPPONENT_READY_TO_PLAY = "SETUP_OPPONENT_READY_TO_PLAY",
     ADD_BATTLESHIP_ADDRESS = "ADD_BATTLESHIP_ADDRESS",
 
     /// STORE ////////////////////////////////////
@@ -41,7 +38,7 @@ export enum ActionType {
     ATTACK_CREATE = "ATTACK_CREATE_OR_UPDATE",
     UPDATE_CURRENT_ACTION_TYPE = "UPDATE_CURRENT_ACTION_TYPE",
 
-    /// STATE CHANNEL //////////////////////////////
+    /// STATE CHANNEL ////////////////////////////
     LOCK = "LOCK",
     REQUEST_LOCK_SIG = "REQUEST_LOCK_SIG",
     LOCK_SIG = "LOCK_SIG",
@@ -49,7 +46,17 @@ export enum ActionType {
     OFF_CHAIN_BATTLESHIP_ADDRESS = "OFF_CHAIN_BATTLESHIP_ADDRESS",
     OFF_CHAIN_STATECHANNEL_ADDRESS = "OFF_CHAIN_STATECHANNEL_ADDRESS",
     REQUEST_STATE_SIG = "REQUEST_STATE_SIG",
-    STATE_SIG = "STATE_SIG"
+    STATE_SIG = "STATE_SIG",
+
+    /// COMUNICATION /////////////////////////////
+    COUNTERPARTY_STAGE_UPDATE = "COUNTERPARTY_STAGE_UPDATE",
+    STAGE_UPDATE = "STAGE_UPDATE",
+
+    // OFF-CHAIN /////////////////////////////////
+    BOTH_PLAYERS_READY_OFF_CHAIN = "BOTH_PLAYERS_READY_OFF_CHAIN",
+    ACKNOWLEDGE_ATTACK_BROADCAST = "ACKNOWLEDGE_ATTACK_BROADCAST",
+    ACKNOWLEDGE_REVEAL_BROADCAST = "ACKNOWLEDGE_REVEAL_BROADCAST",
+    REVEAL_BROADCAST_OFF_CHAIN = "REVEAL_BROADCAST_OFF_CHAIN"
 }
 
 const createAction = <P>(type: string, payload: P) => {
@@ -64,12 +71,19 @@ export const Action = {
     attackBroadcast: (
         x: number,
         y: number,
-        // TODO: weird
-        // moveCtr: number,
-        // sig: string,
+        counterpartyAttackSig: string,
+        onChainAttackSig: string,
         hashState: string,
-        hashStateSig: string
-    ) => createAction(ActionType.ATTACK_BROADCAST, { x, y, hashState, hashStateSig }),
+        channelSig?: string
+    ) =>
+        createAction(ActionType.ATTACK_BROADCAST, {
+            x,
+            y,
+            counterpartyAttackSig,
+            onChainAttackSig,
+            hashState,
+            channelSig
+        }),
     attackCreate: (payload: IMove) => createAction(ActionType.ATTACK_CREATE, payload),
     attackAccept: (hashStateSignature: string) => createAction(ActionType.ATTACK_ACCEPT, { hashStateSignature }),
 
@@ -87,9 +101,6 @@ export const Action = {
     setupPlaceBet: (amount: number) => createAction(ActionType.SETUP_PLACE_BET, { amount }),
     setupStoreShips: (ships: IShip[], board: string[][]) =>
         createAction(ActionType.SETUP_STORE_SHIPS, { ships, board }),
-    // TODO: hack because we havent sorted out the proper nullabe type for payload, or use the typesafe-actions
-    setupOpponentReadytoPlay: () => createAction(ActionType.SETUP_OPPONENT_READY_TO_PLAY, {}),
-    setupReadyToPlay: (isReadyToPlay: boolean) => createAction(ActionType.SETUP_READY_TO_PLAY, { isReadyToPlay }),
 
     /// STORE /////////////////////////////////////////////
     storeOnChainBattleshipContract: (battleshipContract: Contract) =>
@@ -101,15 +112,28 @@ export const Action = {
 
     // STATE CHANNEL
     lock: (address: string) => createAction(ActionType.LOCK, { address }),
-    requestLockSig: (address: string, channelCounter: number, round: number) => createAction(ActionType.REQUEST_LOCK_SIG, { address, round, channelCounter }),
+    requestLockSig: (address: string, channelCounter: number, round: number) =>
+        createAction(ActionType.REQUEST_LOCK_SIG, { address, round, channelCounter }),
     lockSig: (address: string, sig: string) => createAction(ActionType.LOCK_SIG, { address, sig }),
 
     deployOffChain: () => createAction(ActionType.DEPLOY_OFF_CHAIN, {}),
     offChainBattleshipAddress: (address: string) => createAction(ActionType.OFF_CHAIN_BATTLESHIP_ADDRESS, { address }),
     offChainStateChannelAddress: (address: string) =>
         createAction(ActionType.OFF_CHAIN_STATECHANNEL_ADDRESS, { address }),
-    requestStateSig: () => createAction(ActionType.REQUEST_STATE_SIG, {}),
-    stateSig: (sig: string) => createAction(ActionType.STATE_SIG, { sig })
+    requestStateSig: (stateChannelAddress: string) =>
+        createAction(ActionType.REQUEST_STATE_SIG, { stateChannelAddress }),
+    stateSig: (sig: string) => createAction(ActionType.STATE_SIG, { sig }),
+
+    // COMMUNICATION
+    counterpartyStageUpdate: (stage: PlayerStage) => createAction(ActionType.COUNTERPARTY_STAGE_UPDATE, { stage }),
+    stageUpdate: (stage: PlayerStage) => createAction(ActionType.STAGE_UPDATE, { stage }),
+
+    // OFF-CHAIN
+    acknowledgeAttackBroadcast: (channelSig: string) =>
+        createAction(ActionType.ACKNOWLEDGE_ATTACK_BROADCAST, { channelSig }),
+    acknowledgeRevealBroadcast: (channelSig: string) => createAction(ActionType.ACKNOWLEDGE_REVEAL_BROADCAST, { channelSig }),
+    revealBroadcastOffChain: (payload: IStateChannelUpdate<{ reveal: Reveal; x: number; y: number }>) =>
+        createAction(ActionType.REVEAL_BROADCAST, payload)
 };
 
 export type Action = TypesafeActions.ActionType<typeof Action>;
