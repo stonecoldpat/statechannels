@@ -4,8 +4,8 @@ Setup flow
 Setup involves deploying a battleship on chain, locking it, then deploying a battleship off chain and unlocking it with state from the on chain contract.
 
 ```mermaid
-sequenceDiagram;
-    participant A as Alice;
+sequenceDiagram
+    participant A as Alice
     participant AE as Alice Engine
     participant BE as Bob Engine
     participant B as Bob
