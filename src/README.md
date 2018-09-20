@@ -52,3 +52,45 @@ sequenceDiagram;
 
     Note over A,B: Begin attack reveal cycle
 ```
+
+Attack reveal cycle
+======================
+A player attacks then the other reveals, then roles a switched.
+
+```mermaid
+sequenceDiagram;
+    loop Repeat until win
+    participant A as Alice
+    participant AE as Alice Engine
+    participant BE as Bob Engine
+    participant B as Bob
+    
+    A->>AE: Attack x,y
+    Note over AE: Apply attack x,y
+    AE->>BE: Send attack x,y
+    Note over BE: Verify attack x,y
+    Note over BE: Apply attack x,y
+    BE->>AE: Acknowledge attack x,y
+
+    B->>BE: Reveal x,y
+    Note over BE: Apply reveal x,y
+    BE->>AE: Send reveal x,y
+    Note over AE: Verify reveal x,y
+    Note over AE: Apply reveal x,y
+    AE->>BE: Acknowledge reveal x,y
+
+    B->>BE: Attack x',y'
+    Note over BE: Apply attack x',y'
+    BE->>AE: Send attack x',y'
+    Note over AE: Verify attack x',y'
+    Note over AE: Apply attack x',y'
+    AE->>BE: Acknowledge attack x',y'
+
+    A->>AE: Reveal x',y'
+    Note over AE: Apply reveal x',y'
+    AE->>BE: Send reveal x',y'
+    Note over BE: Verify reveal x',y'
+    Note over BE: Apply reveal x',y'
+    BE->>AE: Acknowledge reveal x',y'
+    end
+```
