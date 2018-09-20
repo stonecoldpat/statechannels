@@ -5,7 +5,7 @@ Setup involves deploying a battleship on chain, locking it, then deploying a bat
 
 ```mermaid
 sequenceDiagram;
-    participant A as Alice
+    participant A as Alice;
     participant AE as Alice Engine
     participant BE as Bob Engine
     participant B as Bob
