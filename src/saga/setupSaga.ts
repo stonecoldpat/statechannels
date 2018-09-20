@@ -2,6 +2,7 @@ import { takeEvery, select, call, put, fork, spawn } from "redux-saga/effects";
 import { Selector } from "./../store";
 import { PlayerStage } from "./../entities/gameEntities";
 import { ActionType, Action } from "./../action/rootAction";
+import { TimeLogger } from "./../utils/TimeLogger"
 const BattleShipWithoutBoard = require("./../../build/contracts/BattleShipWithoutBoard.json");
 const StateChannelFactory = require("./../../build/contracts/StateChannelFactory.json");
 import { checkCurrentActionType } from "./checkCurrentActionType";
@@ -23,9 +24,11 @@ export function* deployBattleship(action: ReturnType<typeof Action.setupDeploy>)
     // TODO: we should also set the goesFirst in here and in addBattleshipAddress - or it should be taken account of
 
     yield call(checkCurrentActionType, ActionType.SETUP_DEPLOY_AWAIT);
+    
     // get web3 from the store
     const web3: ReturnType<typeof Selector.web3> = yield select(Selector.web3);
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
+    TimeLogger.theLogger.log(player.address)("beginSetup");
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
 
     // we need to deploy a state channel factory for use by the application
@@ -56,6 +59,7 @@ export function* deployBattleship(action: ReturnType<typeof Action.setupDeploy>)
     // store the deployed contract, and pass the information to the counterparty
     yield put(Action.storeOnChainBattleshipContract(deployedContract));
     // TODO: should be a fork
+    TimeLogger.theLogger.log(player.address)("sendContract")
     yield call(counterparty.sendContract, Action.setupAddBattleshipAddress(deployedContract.options.address));
 
     // complete the rest of the setup
@@ -83,7 +87,10 @@ export function* completeSetup() {
     // place bet
     yield call(placeBet, Action.setupPlaceBet(betAmount));
     // now wait for ship input
+    const player : ReturnType<typeof Selector.player> = yield select(Selector.player)
+    TimeLogger.theLogger.log(player.address)("requestShips")
     yield put(Action.updateCurrentActionType(ActionType.SETUP_STORE_SHIPS_AWAIT));
+
 }
 
 export function* deposit(action: ReturnType<typeof Action.setupDeposit>) {
@@ -96,6 +103,7 @@ export function* deposit(action: ReturnType<typeof Action.setupDeposit>) {
     );
 
     yield call(battleshipContract.methods.deposit().send, { from: player.address, value: action.payload.amount });
+    TimeLogger.theLogger.log(player.address)("deposit");
 }
 
 export function* placeBet(action: ReturnType<typeof Action.setupPlaceBet>) {
@@ -105,11 +113,12 @@ export function* placeBet(action: ReturnType<typeof Action.setupPlaceBet>) {
     );
 
     yield call(battleshipContract.methods.placeBet(action.payload.amount).send, { from: player.address });
+    TimeLogger.theLogger.log(player.address)("placeBet");
 }
 
 export function* storeShips(action: ReturnType<typeof Action.setupStoreShips>) {
     // TODO: check game phase
-
+    
     const battleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
         Selector.onChainBattleshipContract
     );
@@ -117,7 +126,7 @@ export function* storeShips(action: ReturnType<typeof Action.setupStoreShips>) {
     const round: ReturnType<typeof Selector.round> = yield select(Selector.round);
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
-
+    TimeLogger.theLogger.log(player.address)("beginStoreShips")
     //create a commitment and update attack
     const ships = committedShips(
         battleshipContract.options.address,
@@ -156,6 +165,7 @@ export function* readyToPlay() {
 
     // signal to the counterparty that we are ready to play
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
+    TimeLogger.theLogger.log(player.address)("Send ready to play")
     yield call(counterparty.sendStageUpdate, Action.counterpartyStageUpdate(PlayerStage.READY_TO_PLAY));
 
     // also check to see if the counteryparty is already ready to play, if so then we're ready to start
@@ -171,6 +181,7 @@ export function* counterpartyStageUpdate(action: ReturnType<typeof Action.counte
         case PlayerStage.READY_TO_PLAY: {
             if (player.stage === PlayerStage.READY_TO_PLAY) {
                 // both players are ready
+                TimeLogger.theLogger.log(player.address)("Receive ready to play")
                 yield call(bothPlayersReadyToPlay, player.goesFirst);
             }
             break;
@@ -178,7 +189,8 @@ export function* counterpartyStageUpdate(action: ReturnType<typeof Action.counte
         case PlayerStage.READY_TO_PLAY_OFFCHAIN: {
             if (player.stage === PlayerStage.READY_TO_PLAY_OFFCHAIN) {
                 // both players ready offline
-                yield put( { type: ActionType.BOTH_PLAYERS_READY_OFF_CHAIN })
+                TimeLogger.theLogger.log(player.address)("Receive ready to play off chain")
+                yield put({ type: ActionType.BOTH_PLAYERS_READY_OFF_CHAIN });
             }
             break;
         }
