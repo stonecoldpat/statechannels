@@ -1,4 +1,6 @@
 import * as chai from "chai";
+import fs from "fs";
+import util from "util";
 import "mocha";
 const chaiAsPromised = require("chai-as-promised");
 chai.use(chaiAsPromised);
@@ -13,6 +15,7 @@ import { IShip, IStore, IPlayer, Reveal, PlayerStage } from "./../../entities/ga
 import { generateStore } from "./../../store";
 import Web3 = require("web3");
 import { action } from "typesafe-actions";
+import { TimeLogger } from "../../utils/TimeLogger";
 
 const shipSizes = [5, 4, 3, 3, 2];
 
@@ -59,8 +62,8 @@ const state1: IStore = {
         sendContract: (action: ReturnType<typeof Action.setupAddBattleshipAddress>) => {
             store2.dispatch(action);
         },
-        sendAction: (action ) => {
-            store2.dispatch(action)
+        sendAction: action => {
+            store2.dispatch(action);
         },
         sendStageUpdate: (action: ReturnType<typeof Action.counterpartyStageUpdate>) => {
             store2.dispatch(action);
@@ -112,13 +115,13 @@ const state2: IStore = {
         sendStateSig: (action: ReturnType<typeof Action.stateSig>) => {
             store1.dispatch(action);
         },
-        sendAction: (action) => {
-            store1.dispatch(action)
+        sendAction: action => {
+            store1.dispatch(action);
         },
         sendContract: (action: ReturnType<typeof Action.setupAddBattleshipAddress>) => {
             store1.dispatch(action);
         },
-        sendStageUpdate: (action) => {
+        sendStageUpdate: action => {
             store1.dispatch(action);
         },
         stage: PlayerStage.NONE,
@@ -152,6 +155,7 @@ class TestBot {
         // we need to subscribe to the store to watch for certain events
         this.mUnsubsribe = store.subscribe(() => {
             if (this.complete) return;
+            i++;
 
             const state: IStore = store.getState();
             // console.log(state.currentActionType);
@@ -175,6 +179,7 @@ class TestBot {
                     // we're awaiting an attack, so lets make one
                     let attack = attackIterator.next().value;
                     console.log("attack", attack);
+
                     store.dispatch(Action.attackInput(attack.x, attack.y));
 
                     break;
@@ -182,20 +187,28 @@ class TestBot {
                     const latestMove = state.game.moves[state.game.moves.length - 1];
                     const revealResult = gameState.attackSquare(latestMove.x, latestMove.y);
                     console.log("reveal: ", revealToString(revealResult.reveal));
+                    if (revealResult.reveal === Reveal.Sink) {
+                        const log_file = fs.createWriteStream(__dirname + "/debug.log", { flags: "w" });
+                        TimeLogger.theLogger.logs.map(l => log_file.write(util.format(l.serialise()) + "\n"));
+
+                        console.log();
+                        return;
+                    }
 
                     // TODO: ship index
                     let action =
-                        revealResult.reveal === Reveal.Sink
-                            ? Action.revealInput(
-                                  revealResult.reveal,
-                                  revealResult.ship!.r,
-                                  revealResult.ship!.x1,
-                                  revealResult.ship!.y1,
-                                  revealResult.ship!.x2,
-                                  revealResult.ship!.y2,
-                                  revealResult.shipIndex
-                              )
-                            : Action.revealInput(revealResult.reveal);
+                        // revealResult.reveal === Reveal.Sink
+                        //     ? Action.revealInput(
+                        //           revealResult.reveal,
+                        //           revealResult.ship!.r,
+                        //           revealResult.ship!.x1,
+                        //           revealResult.ship!.y1,
+                        //           revealResult.ship!.x2,
+                        //           revealResult.ship!.y2,
+                        //           revealResult.shipIndex
+                        //       )
+                        //     :
+                        Action.revealInput(revealResult.reveal);
 
                     store.dispatch(action);
                     break;
@@ -314,13 +327,13 @@ describe("Saga setup", () => {
         store1.dispatch(actionSetupDeploy);
 
         while (!bot1.complete || !bot2.complete) {
-            if (Date.now() - timeStamp > 10000) throw new Error("exceeded timeout");
-            await delay(1000);
+            if (Date.now() - timeStamp > 30000) throw new Error("exceeded timeout");
+            await delay(10);
         }
 
         bot1.unsubscribe();
         bot2.unsubscribe();
-    }).timeout(10000);
+    }).timeout(30000);
 
     const delay = time =>
         new Promise(resolve => {

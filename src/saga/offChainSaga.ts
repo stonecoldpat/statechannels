@@ -39,7 +39,7 @@ export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
         Selector.offChainBattleshipContract
     );
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)(`Attack ${action.payload.x}:${action.payload.y}`);
+    TimeLogger.theLogger.log(player.address)(`Attack ${action.payload.x},${action.payload.y}`);
 
     // sign the x,y,move_ctr,round,address hash
     const moveCtr = yield call(offChainBattleshipContract.methods.move_ctr().call);
@@ -60,9 +60,6 @@ export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
     const attack = offChainBattleshipContract.methods.attack(action.payload.x, action.payload.y, sig);
     
     yield call(attack.send, { from: player.address, gas: 300000 });
-    if (moveCtr == 10) {
-        return;
-    }
 
     // create an attack for the opponent's contract
 
@@ -118,7 +115,7 @@ export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
     );
 
     // TODO: we also need to send an attack that is valid on chain - for later use in fraud proofs
-    TimeLogger.theLogger.log(player.address)(`Send attack ${action.payload.x}:${action.payload.y}`)
+    TimeLogger.theLogger.log(player.address)(`Send attack ${action.payload.x},${action.payload.y}`)
     yield call(
         counterparty.sendAttack,
         Action.attackBroadcast(
@@ -135,7 +132,7 @@ export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
 export function* attackBroadcast(action: ReturnType<typeof Action.attackBroadcast>) {
     // received an attack broadcast from counterparty, apply it to the player's off chain contract and verify the state before sending back a sig
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)(`Receive attack ${action.payload.x}:${action.payload.y}`)
+    TimeLogger.theLogger.log(player.address)(`Receive attack ${action.payload.x},${action.payload.y}`)
     const offChainBattleshipContract: Contract = yield select(Selector.offChainBattleshipContract);
     const onChainBattleshipContract: Contract = yield select(Selector.onChainBattleshipContract);
     const moveCtr = yield call(offChainBattleshipContract.methods.move_ctr().call);
@@ -207,7 +204,7 @@ export function* attackBroadcast(action: ReturnType<typeof Action.attackBroadcas
     );
 
     // acknowledge braoadcast
-    TimeLogger.theLogger.log(player.address)(`Send acknowledge attack ${action.payload.x}:${action.payload.y}`)
+    TimeLogger.theLogger.log(player.address)(`Send acknowledge attack ${action.payload.x},${action.payload.y}`)
     yield call(counterparty.sendAction, Action.acknowledgeAttackBroadcast(channelSig));
 
     // now await the reveal
@@ -242,11 +239,11 @@ export function* revealInput(action: ReturnType<typeof Action.revealInput>) {
     // user reveals a value
     const offChainBattleshipContract: Contract = yield select(Selector.offChainBattleshipContract);
     const onChainBattleshipContract: Contract = yield select(Selector.onChainBattleshipContract);
-    const channelAddress = yield call(onChainBattleshipContract.methods.stateChannel().call);
-    const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    
     const latestMove: ReturnType<typeof Selector.latestMove> = yield select(Selector.latestMove);
-    TimeLogger.theLogger.log(player.address)(`Reveal ${action.payload.reveal} at ${latestMove.x}:${latestMove.y}`);
+    const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
+    TimeLogger.theLogger.log(player.address)(`Reveal ${action.payload.reveal} at ${latestMove.x},${latestMove.y}`);
+    const channelAddress = yield call(onChainBattleshipContract.methods.stateChannel().call);
+    
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
     const moveCtr = yield call(offChainBattleshipContract.methods.move_ctr().call);
     const round = yield call(offChainBattleshipContract.methods.round().call);
@@ -321,7 +318,7 @@ export function* revealInput(action: ReturnType<typeof Action.revealInput>) {
             })
         );
 
-        TimeLogger.theLogger.log(player.address)(`Send reveal ${action.payload.reveal} at ${latestMove.x}:${latestMove.y}`);
+        TimeLogger.theLogger.log(player.address)(`Send reveal ${action.payload.reveal} at ${latestMove.x},${latestMove.y}`);
         yield call(
             counterparty.sendAction,    
             Action.revealBroadcastOffChain({
@@ -332,8 +329,6 @@ export function* revealInput(action: ReturnType<typeof Action.revealInput>) {
                 onChainStateHashSig: channelSig
             })
         );
-
-        yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));
     }
 }
 
@@ -346,7 +341,7 @@ export function* revealBroadcast(action: ReturnType<typeof Action.revealBroadcas
 
     // received an attack broadcast from counterparty, apply it to the player's off chain contract and verify the state before sending back a sig
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)(`Reveal ${action.payload.data.reveal} at ${action.payload.data.x}:${action.payload.data.y}`);
+    TimeLogger.theLogger.log(player.address)(`Receive reveal ${action.payload.data.reveal} at ${action.payload.data.x},${action.payload.data.y}`);
     const offChainBattleshipContract: Contract = yield select(Selector.offChainBattleshipContract);
     const onChainBattleshipContract: Contract = yield select(Selector.onChainBattleshipContract);
     const onChainStateChannel = yield call(onChainBattleshipContract.methods.stateChannel().call);
@@ -413,7 +408,7 @@ export function* revealBroadcast(action: ReturnType<typeof Action.revealBroadcas
         })
     );
 
-    TimeLogger.theLogger.log(player.address)(`Send acknowledge reveal ${action.payload.data.reveal} at ${action.payload.data.x}:${action.payload.data.y}`);
+    TimeLogger.theLogger.log(player.address)(`Send acknowledge reveal ${action.payload.data.reveal} at ${action.payload.data.x},${action.payload.data.y}`);
     yield call(counterparty.sendAction, Action.acknowledgeRevealBroadcast(channelSig));
 }
 
@@ -421,7 +416,7 @@ function* acknowledgeRevealBroadcast(action: ReturnType<typeof Action.acknowledg
 
     const latestMove: ReturnType<typeof Selector.latestMove> = yield select(Selector.latestMove);
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)(`Send acknowledge reveal ${latestMove.reveal} at ${latestMove.x}:${latestMove.y}`);
+    TimeLogger.theLogger.log(player.address)(`Send acknowledge reveal ${latestMove.reveal} at ${latestMove.x},${latestMove.y}`);
     //TODO: current round
     const currentRound = latestMove.moveCtr;
 
@@ -440,7 +435,8 @@ function* acknowledgeRevealBroadcast(action: ReturnType<typeof Action.acknowledg
     // TODO: do something
     latestMove.counterPartyChannelSig = action.payload.channelSig;
 
-    // receive an reveal acknowledgement, we now wait for the reveal broadcast
+    // receive an reveal acknowledgement, we now wait for the attack input
+    yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));
 }
 
 function recover(message: string, signature: string) {
