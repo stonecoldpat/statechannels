@@ -19,7 +19,9 @@ const currentActionTypeReducer = (
     else if (
         action.type === ActionType.SETUP_STORE_SHIPS ||
         action.type === ActionType.ATTACK_INPUT ||
-        action.type === ActionType.REVEAL_INPUT
+        action.type === ActionType.REVEAL_INPUT || 
+        action.type === ActionType.PROPOSE_STATE_UPDATE ||
+        action.type === ActionType.PROPOSE_TRANSACTION_STATE_UPDATE
     ) {
         return action.type;
     } else return state;

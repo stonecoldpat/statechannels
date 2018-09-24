@@ -1,6 +1,7 @@
 import { Contract } from "web3-eth-contract";
 import { Action, ActionType } from "./../action/rootAction";
 import Web3 = require("web3");
+import Web3Util from "web3-utils";
 
 export interface IShip {
     id: string;
@@ -16,8 +17,6 @@ export interface IShip {
     hits: number;
     commitment: string;
 }
-
-
 export interface IStore {
     currentActionType: ActionType;
     web3: Web3;
@@ -68,7 +67,7 @@ export interface IMove {
     y: number;
     round: number;
     moveCtr: number;
-    attackSig: string;
+    moveSig: string;
     hashState: string;
     channelSig: string;
     counterPartyChannelSig?: string;
@@ -83,6 +82,7 @@ export interface IStateChannelUpdate<T> {
     onChainStateHash: string;
     onChainStateHashSig: string
 }
+
 
 export interface ICounterpartyClient extends IPlayer {
     sendAttack(action: ReturnType<typeof Action.attackBroadcast>): void;

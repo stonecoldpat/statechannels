@@ -135,7 +135,7 @@ function* attackReceiveBroadcastChannel(action: ReturnType<typeof Action.attackB
     // update the local record
     // TODO: should this been append? and update sig only? seems tighter but less flexible
     yield put(
-        Action.attackCreate({
+        Action.moveCreate({
             // TODO:
             // id: moveCtr.toNumber(),
             x: action.payload.x,

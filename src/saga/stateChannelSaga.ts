@@ -33,7 +33,7 @@ export function* lock(action: ReturnType<typeof Action.lock>) {
     // pass this to the counterparty for countersignature
 
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
-    TimeLogger.theLogger.log(player.address)("Request lock sig");
+    TimeLogger.theLogger.messageLog(player.address)("Request lock sig");
     yield call(counterparty.sendRequestLockSig, Action.requestLockSig(action.payload.address, channelCounter, round));
 }
 
@@ -43,7 +43,7 @@ function* requestLockSig(action: ReturnType<typeof Action.requestLockSig>) {
     // b) create a hash ourselves and sign
     
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)("Received lock sig request");
+    TimeLogger.theLogger.messageLog(player.address)("Received lock sig request");
     // get the battleship contract
     const web3: ReturnType<typeof Selector.web3> = yield select(Selector.web3);
     const sig: string = yield call(
@@ -57,7 +57,7 @@ function* requestLockSig(action: ReturnType<typeof Action.requestLockSig>) {
 
     // send the sig back
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
-    TimeLogger.theLogger.log(player.address)("Send lock sig");
+    TimeLogger.theLogger.messageLog(player.address)("Send lock sig");
     yield call(counterparty.sendLockSig, Action.lockSig(action.payload.address, sig));
 }
 
@@ -67,7 +67,7 @@ function* lockSig(action: ReturnType<typeof Action.lockSig>) {
     const battleshipContract: Contract = yield select(Selector.getBattleshipContractByAddress(action.payload.address));
     const web3: ReturnType<typeof Selector.web3> = yield select(Selector.web3);
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)("Receive lock sig");
+    TimeLogger.theLogger.messageLog(player.address)("Receive lock sig");
     const channelCounter = yield call(battleshipContract.methods.channelCounter().call);
     const round = yield call(battleshipContract.methods.round().call);
     const sig: string = yield call(
@@ -92,14 +92,14 @@ function* lockSig(action: ReturnType<typeof Action.lockSig>) {
         }
     );
     
-    TimeLogger.theLogger.log(player.address)("Contract locked")
+    TimeLogger.theLogger.messageLog(player.address)("Contract locked")
 
     // we've locked the contract, what do we want to do now?
     let onChainBattleshipContract: Contract = yield select(Selector.onChainBattleshipContract);
     if (onChainBattleshipContract && onChainBattleshipContract.options.address === action.payload.address) {
         // if we just locked the on chain contract, then we want to deploy an off chain contract and signal to the counterparty to deploy off chain
         const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
-        TimeLogger.theLogger.log("Signal deploy off chain");
+        TimeLogger.theLogger.messageLog("Signal deploy off chain");
         yield call(counterparty.sendDeployOffChain, Action.deployOffChain());
         // deploy ourselves
         yield call(deployOffChain);
@@ -108,7 +108,7 @@ function* lockSig(action: ReturnType<typeof Action.lockSig>) {
         // get the state channel address
         const stateChannelAddress = yield call(battleshipContract.methods.stateChannel().call);
         const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
-        TimeLogger.theLogger.log("Request close sig")
+        TimeLogger.theLogger.messageLog("Request close sig")
         yield call(counterparty.sendRequestStateSig, Action.requestStateSig(stateChannelAddress));
     }
 }
@@ -122,7 +122,7 @@ function* requestStateSig(action: ReturnType<typeof Action.requestStateSig>) {
     // get the on chain contract
     const onChainBattleshipContract: Contract = yield select(Selector.onChainBattleshipContract);
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)("Received close sig request")
+    TimeLogger.theLogger.messageLog(player.address)("Received close sig request")
     const stateHash = yield call(onChainBattleshipContract.methods.getState(dummyRandom).call, {
         from: player.address
     });
@@ -135,7 +135,7 @@ function* requestStateSig(action: ReturnType<typeof Action.requestStateSig>) {
 
     // now sign it with the player address and send it back
     const stateSig: string = yield call(web3.eth.sign, hashedWithClose, player.address);
-    TimeLogger.theLogger.log(player.address)("Send close sig")
+    TimeLogger.theLogger.messageLog(player.address)("Send close sig")
     yield call(counterparty.sendStateSig, Action.stateSig(stateSig));
 }
 
@@ -145,7 +145,7 @@ function* stateSig(action: ReturnType<typeof Action.stateSig>) {
     const onChainBattleshipContract: Contract = yield select(Selector.onChainBattleshipContract);
     const offChainBattleshipContract: Contract = yield select(Selector.offChainBattleshipContract);
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)("Receive close sig")
+    TimeLogger.theLogger.messageLog(player.address)("Receive close sig")
     let stateChannelAddress = yield call(offChainBattleshipContract.methods.stateChannel().call);
 
     // get the state hash
@@ -181,7 +181,7 @@ function* stateSig(action: ReturnType<typeof Action.stateSig>) {
         }
     );
     
-    TimeLogger.theLogger.log(player.address)("Channel closed");
+    TimeLogger.theLogger.messageLog(player.address)("Channel closed");
     // now unlock
     const state: IBattleShipState = yield call(onChainBattleshipContract.methods.getState(dummyRandom).call);
     yield call(
@@ -200,12 +200,12 @@ function* stateSig(action: ReturnType<typeof Action.stateSig>) {
         ).send,
         { from: player.address, gas: 13000000 }
     );
-    TimeLogger.theLogger.log(player.address)("Off chain unlocked")
+    TimeLogger.theLogger.messageLog(player.address)("Off chain unlocked")
     // now we're ready to play off chain
     yield put(Action.stageUpdate(PlayerStage.READY_TO_PLAY_OFFCHAIN));
 
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
-    TimeLogger.theLogger.log(player.address)("Send ready to play off chain")
+    TimeLogger.theLogger.messageLog(player.address)("Send ready to play off chain")
     yield call(counterparty.sendStageUpdate, Action.counterpartyStageUpdate(PlayerStage.READY_TO_PLAY_OFFCHAIN));
 
     // if both us and the counter pary are ready, then lets play off chain
@@ -278,7 +278,7 @@ function* deployOffChain() {
     // get web3 from the store
     const web3: ReturnType<typeof Selector.web3> = yield select(Selector.web3);
     const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    TimeLogger.theLogger.log(player.address)("Begin deploy off chain");
+    TimeLogger.theLogger.messageLog(player.address)("Begin deploy off chain");
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
     const onChainBattleshipContract: ReturnType<typeof Selector.onChainBattleshipContract> = yield select(
         Selector.onChainBattleshipContract
@@ -314,7 +314,7 @@ function* deployOffChain() {
     yield put(Action.storeOffChainBattleshipContract(deployedContract));
 
     // inform the other party of the off chain contract addess
-    TimeLogger.theLogger.log(player.address)("Send off chain address")
+    TimeLogger.theLogger.messageLog(player.address)("Send off chain address")
     yield call(
         counterparty.sendOffChainBattleshipAddress,
         Action.offChainBattleshipAddress(deployedContract.options.address)

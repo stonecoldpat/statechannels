@@ -85,6 +85,15 @@ contract BattleShipWithoutBoard {
     // "r" is the random nonce, agreed by both parties. 
     // Have all parties agreed to unlock this contract? 
     function unlock(bool[6] _bool, uint8[2] _uints8, uint[6] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk) public disableForPrivateNetwork {
+        // if the channel has been closed without setstate being called then we allow the battleship
+        // game to be unlocked in it's prior state. if setstate is missed for some reason, then an
+        // unlock would be impossible otherwise.
+        if(bytes32(0x00) == stateChannel.getStateHash()) {
+            statechannelon = false;
+            delete stateChannel;
+            return;
+        }
+    
         // "round" is included in _uints
         bytes32 _h = keccak256(abi.encodePacked(_bool, _uints8, _uints, _winner, _maps, _shiphash, _x1, _y1, _x2, _y2, _sunk));
         _h = keccak256(abi.encodePacked(_h, address(this)));
@@ -142,17 +151,6 @@ contract BattleShipWithoutBoard {
             
         }
     }
-
-    // if the channel has been closed without setstate being called then we allow the battleship
-    // game to be unlocked in it's prior state. if setstate is missed for some reason, then an
-    // unlock would be impossible otherwise.
-    function unlockNoUpdate() public disableForPrivateNetwork {
-        require(bytes32(0x00) == stateChannel.getStateHash());
-        
-        statechannelon = false;
-        delete stateChannel;
-    }
-    
     
     // Only required in the PRIVATE contract. Not required in the public / ethereum contract. 
     function getState(uint r) public view returns (bool[6] _bool, uint8[2] _uints8, uint[6] _uints, address _winner, uint[8] _maps, bytes32[10] _shiphash, uint8[10] _x1, uint8[10] _y1, uint8[10] _x2, uint8[10] _y2, bool[10] _sunk, bytes32 _h) {

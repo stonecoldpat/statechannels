@@ -1,0 +1,213 @@
+end-to-end
+method       totalGas  timesCalled  averageGas
+-----------  --------  -----------  ------------------
+new          13607069  1            13607069
+deposit      88494     2            44247
+placeBet     69374     2            34687
+storeShips   845852    2            422926
+readyToPlay  95301     2            47650.5
+attack       2978346   43           69263.86046511628
+revealslot   2490652   34           73254.4705882353
+revealsunk   1002518   9            111390.88888888889
+openships    81648     1            81648
+finishGame   275532    1            275532
+withdraw     36674     1            36674
+TOTAL        21571460  98           220116.9387755102
+
+
+
+do-not-play
+method      totalGas  timesCalled  averageGas
+----------  --------  -----------  ------------------
+new         13607069  1            13607069
+deposit     88494     2            44247
+placeBet    69374     2            34687
+storeShips  846024    2            423012
+doNotPlay   777610    2            388805
+TOTAL       15388571  9            1709841.2222222222
+
+
+
+statechannel-factory-end-to-end
+method              totalGas  timesCalled  averageGas
+------------------  --------  -----------  ----------
+new                 1224854   1            1224854
+createStateChannel  918950    1            918950
+TOTAL               2143804   2            1071902
+
+
+
+statechannel-end-to-end-dispute
+method          totalGas  timesCalled  averageGas
+--------------  --------  -----------  ----------
+new             1157909   1            1157909
+triggerDispute  84106     1            84106
+setstate        70035     1            70035
+resolve         89745     1            89745
+TOTAL           1401795   4            350448.75
+
+
+
+statechannel-end-to-end-coop
+method  totalGas  timesCalled  averageGas
+------  --------  -----------  ----------
+new     1157909   1            1157909
+close   90354     1            90354
+TOTAL   1248263   2            624131.5
+
+
+
+end-to-end-lock-unlock
+method       totalGas  timesCalled  averageGas
+-----------  --------  -----------  -----------------
+new          13607069  1            13607069
+deposit      88494     2            44247
+placeBet     69374     2            34687
+storeShips   845916    2            422958
+readyToPlay  95301     2            47650.5
+lock         991617    1            991617
+unlock       727539    1            727539
+openships    81648     1            81648
+finishGame   275532    1            275532
+withdraw     36674     1            36674
+TOTAL        16819164  14           1201368.857142857
+
+
+
+end-to-end-lock-unlock-off-chain
+method      totalGas  timesCalled  averageGas
+----------  --------  -----------  ------------------
+new         13685479  1            13685479
+unlock      990741    1            990741
+attack      2963538   43           68919.48837209302
+revealslot  2490916   34           73262.23529411765
+revealsunk  1004983   9            111664.77777777778
+TOTAL       21135657  88           240177.92045454544
+
+
+
+end-to-end-lock-unlock-midway-exit
+method       totalGas  timesCalled  averageGas
+-----------  --------  -----------  ------------------
+new          13607069  1            13607069
+deposit      88494     2            44247
+placeBet     69374     2            34687
+storeShips   845960    2            422980
+readyToPlay  95301     2            47650.5
+lock         991701    1            991701
+unlock       710619    1            710619
+TOTAL        16408518  11           1491683.4545454546
+
+
+
+fraud-challenge-period-expired
+method                 totalGas  timesCalled  averageGas
+---------------------  --------  -----------  ----------
+new                    13607069  1            13607069
+deposit                88494     2            44247
+placeBet               69374     2            34687
+storeShips             846064    2            423032
+readyToPlay            95301     2            47650.5
+attack                 98114     1            98114
+revealslot             101560    1            101560
+fraudChallengeExpired  75349     1            75349
+TOTAL                  14981325  12           1248443.75
+
+
+
+fraud-ships-same-cell
+method              totalGas  timesCalled  averageGas
+------------------  --------  -----------  ------------------
+new                 13607069  1            13607069
+deposit             88494     2            44247
+placeBet            69374     2            34687
+storeShips          845896    2            422948
+readyToPlay         95301     2            47650.5
+attack              2978050   43           69256.97674418605
+revealslot          2659036   37           71865.83783783784
+revealsunk          713889    6            118981.5
+openships           159748    1            159748
+fraudShipsSameCell  280766    1            280766
+withdraw            37218     1            37218
+TOTAL               21534841  98           219743.27551020408
+
+
+
+fraud-attack-same-cell
+method               totalGas  timesCalled  averageGas
+-------------------  --------  -----------  -----------
+new                  13607069  1            13607069
+deposit              88494     2            44247
+placeBet             69374     2            34687
+storeShips           845960    2            422980
+readyToPlay          95301     2            47650.5
+attack               234450    3            78150
+revealslot           259512    3            86504
+fraudAttackSameCell  100861    1            100861
+TOTAL                15301021  16           956313.8125
+
+
+
+fraud-declared-not-miss
+method                totalGas  timesCalled  averageGas
+--------------------  --------  -----------  ------------------
+new                   13607069  1            13607069
+deposit               88494     2            44247
+placeBet              69374     2            34687
+storeShips            845788    2            422894
+readyToPlay           95301     2            47650.5
+attack                2978682   43           69271.67441860466
+revealslot            2716152   38           71477.68421052632
+revealsunk            619392    5            123878.4
+openships             186463    1            186463
+fraudDeclaredNotMiss  284654    1            284654
+withdraw              37218     1            37218
+TOTAL                 21528587  98           219679.45918367346
+
+
+
+fraud-declared-not-hit
+method               totalGas  timesCalled  averageGas
+-------------------  --------  -----------  -----------------
+new                  13607069  1            13607069
+deposit              88494     2            44247
+placeBet             69374     2            34687
+storeShips           845980    2            422990
+readyToPlay          95301     2            47650.5
+attack               2978494   43           69267.30232558139
+revealslot           2700428   38           71063.8947368421
+revealsunk           619180    5            123836
+openships            185951    1            185951
+fraudDeclaredNotHit  284261    1            284261
+withdraw             37218     1            37218
+TOTAL                21511750  98           219507.6530612245
+
+
+
+fraud-declared-not-sunk
+method                totalGas  timesCalled  averageGas
+--------------------  --------  -----------  -----------------
+new                   13607069  1            13607069
+deposit               88494     2            44247
+placeBet              69374     2            34687
+storeShips            845980    2            422990
+readyToPlay           95301     2            47650.5
+attack                2978070   43           69257.44186046511
+revealslot            2716216   38           71479.36842105263
+revealsunk            619328    5            123865.6
+openships             186463    1            186463
+fraudDeclaredNotSunk  312481    1            312481
+withdraw              37218     1            37218
+TOTAL                 21555994  98           219959.1224489796
+
+
+method       totalGas  timesCalled  averageGas
+-----------  --------  -----------  ------------------
+new          13607069  1            13607069
+deposit      88494     2            44247
+placeBet     69374     2            34687
+storeShips   845980    2            422990
+readyToPlay  95301     2            47650.5
+lock         991681    1            991681
+unlock       51454     1            51454
+TOTAL        15749353  11           1431759.3636363635

@@ -67,14 +67,14 @@ export function* attackInput(action: ReturnType<typeof Action.attackInput>) {
 export function* attackBroadcast(action: ReturnType<typeof Action.attackBroadcast>) {
     // store the attack locally
     yield put(
-        Action.attackCreate({
+        Action.moveCreate({
             x: action.payload.x,
             y: action.payload.y,
             // TODO: hack below -get actual values
             moveCtr: 0,
             round: 0,
             hashState: action.payload.hashState,
-            attackSig: action.payload.onChainAttackSig,
+            moveSig: action.payload.onChainAttackSig,
             // TODO: hack below, needs removing
             channelSig: ""
             // TODO: this should be the counterparty sig!

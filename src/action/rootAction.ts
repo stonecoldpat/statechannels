@@ -3,6 +3,7 @@ import * as TypesafeActions from "typesafe-actions";
 // TODO: remove circular dependency here
 import { Contract } from "web3-eth-contract";
 import { IShip, Reveal, IMove, PlayerStage, IStateChannelUpdate } from "./../entities/gameEntities";
+import { IStateUpdate, IVerifyStateUpdate, IAcknowledgeStateUpdate, IProposeStateUpdate } from "../entities/stateUpdates";
 
 export enum ActionType {
     // input from a user
@@ -56,7 +57,13 @@ export enum ActionType {
     BOTH_PLAYERS_READY_OFF_CHAIN = "BOTH_PLAYERS_READY_OFF_CHAIN",
     ACKNOWLEDGE_ATTACK_BROADCAST = "ACKNOWLEDGE_ATTACK_BROADCAST",
     ACKNOWLEDGE_REVEAL_BROADCAST = "ACKNOWLEDGE_REVEAL_BROADCAST",
-    REVEAL_BROADCAST_OFF_CHAIN = "REVEAL_BROADCAST_OFF_CHAIN"
+    REVEAL_BROADCAST_OFF_CHAIN = "REVEAL_BROADCAST_OFF_CHAIN",
+
+    VERIFY_STATE_UPDATE = "VERIFY_STATE_UPDATE",
+    ACKNOWLEDGE_STATE_UPDATE = "ACKNOWLEDGE_STATE_UPDATE",
+    PROPOSE_STATE_UPDATE = "PROPOSE_STATE_UPDATE",
+    PROPOSE_OPEN_SHIPS = "PROPOSE_OPEN_SHIPS",
+    PROPOSE_TRANSACTION_STATE_UPDATE = "PROPOSE_TRANSACTION_STATE_UPDATE"
 }
 
 const createAction = <P>(type: string, payload: P) => {
@@ -84,7 +91,7 @@ export const Action = {
             hashState,
             channelSig
         }),
-    attackCreate: (payload: IMove) => createAction(ActionType.ATTACK_CREATE, payload),
+    moveCreate: (payload: IMove) => createAction(ActionType.ATTACK_CREATE, payload),
     attackAccept: (hashStateSignature: string) => createAction(ActionType.ATTACK_ACCEPT, { hashStateSignature }),
 
     // TODO: IShipCoordinates ?
@@ -131,9 +138,17 @@ export const Action = {
     // OFF-CHAIN
     acknowledgeAttackBroadcast: (channelSig: string) =>
         createAction(ActionType.ACKNOWLEDGE_ATTACK_BROADCAST, { channelSig }),
-    acknowledgeRevealBroadcast: (channelSig: string) => createAction(ActionType.ACKNOWLEDGE_REVEAL_BROADCAST, { channelSig }),
+    acknowledgeRevealBroadcast: (channelSig: string) =>
+        createAction(ActionType.ACKNOWLEDGE_REVEAL_BROADCAST, { channelSig }),
     revealBroadcastOffChain: (payload: IStateChannelUpdate<{ reveal: Reveal; x: number; y: number }>) =>
-        createAction(ActionType.REVEAL_BROADCAST, payload)
+        createAction(ActionType.REVEAL_BROADCAST, payload),
+
+    verifyState: (payload: IVerifyStateUpdate) => createAction(ActionType.VERIFY_STATE_UPDATE, payload),
+    acknowledgeStateUpdate: (payload: IAcknowledgeStateUpdate) =>
+        createAction(ActionType.ACKNOWLEDGE_STATE_UPDATE, payload),
+    proposeState: (payload: IProposeStateUpdate) => createAction(ActionType.PROPOSE_STATE_UPDATE, payload),
+
+    proposeTransactionState: (payload: IProposeStateUpdate) => createAction(ActionType.PROPOSE_TRANSACTION_STATE_UPDATE, payload)
 };
 
 export type Action = TypesafeActions.ActionType<typeof Action>;

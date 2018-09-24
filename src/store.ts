@@ -2,7 +2,7 @@ import { createStore, applyMiddleware, compose } from "redux";
 import createSagaMiddleware from "redux-saga";
 import rootSaga from "./saga/rootSaga";
 import reducer from "./reducer/rootReducer";
-import { IStore } from "./entities/gameEntities";
+import { IStore, Reveal } from "./entities/gameEntities";
 import { Action, ActionType } from "./action/rootAction";
 
 export function generateStore(initialStore: IStore) {
@@ -45,6 +45,7 @@ export class Selector {
     static readonly latestMove = (store: IStore) => store.game.moves[store.game.moves.length - 1];
     static readonly shipSizes = (store: IStore) => store.shipSizes;
     static readonly round = (store: IStore) => store.game.round;
+    static readonly totalSinks = (store: IStore) => store.game.moves.filter(m => m.reveal === Reveal.Sink).length;
 }
 
 // TODO: organise this store - it's currently a mess

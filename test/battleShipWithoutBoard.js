@@ -260,7 +260,6 @@ const testForHitAndReveal = async (contract, player, board, x, y, ships, current
     if (overrides && overrides.hitSupplied) {
         hit = overrides.hit;
     } else if (overrides && overrides.invertBoardHitSupplied) {
-        
         hit = board[x][4 - y];
     } else {
         hit = board[x][y];
@@ -582,7 +581,7 @@ contract("BattleShips", function(accounts) {
         fraudShipsSameCell: false,
         fraudAttackSameCell: false,
         fraudDeclaredNotHit: false,
-        fraudDeclaredNotMiss: true,
+        fraudDeclaredNotMiss: false,
         fraudDeclaredNotSunk: false,
         doNotPlay: false,
         stateChannelFactoryEndToEnd: false,
@@ -590,7 +589,7 @@ contract("BattleShips", function(accounts) {
         stateChannelEndToEndCoop: false,
         battleshipAndStateChannel: false,
         fraudChallengePeriodExpired: false,
-        battleshipNoUpdate: false,
+        battleshipNoUpdate: true,
         battleshipAndStateChannelMidwayExit: false
     };
     let theStateChannelFactory;
@@ -598,6 +597,19 @@ contract("BattleShips", function(accounts) {
     before(async () => {
         // populate the state channel factory
         theStateChannelFactory = await StateChannelFactory.new();
+    });
+
+    it("deploys", async () => {
+        return;
+        const gasLib = [];
+        const BattleShipGamePre = createGasProxy(BattleShipWithoutBoard, gasLib, web32);
+        const BattleShipGame = await BattleShipGamePre.new(
+            player0,
+            player1,
+            timerChallenge,
+            theStateChannelFactory.address
+        );
+        gasLibs.push({ test: "deploys", gasLib });
     });
 
     it("simple end to end", async () => {
@@ -914,6 +926,7 @@ contract("BattleShips", function(accounts) {
 
         // console.log("\t// FINALISE //");
         gasLibs.push({ test: "end-to-end-lock-unlock", gasLib });
+        gasLibs.push({ test: "end-to-end-lock-unlock-off-chain", gasLib: offChainGasLib });
     });
 
     it("battleship end-to-end with lock unlock midway exit", async () => {
@@ -1070,12 +1083,58 @@ contract("BattleShips", function(accounts) {
 
         // pass some time
         await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
+        await web32.eth.sendTransaction({ from: player0, to: player1, value: 10 });
 
         //resolve
         await BattleshipStateChannel.resolve({ from: player0 });
 
         // unlock the offchain state
-        await BattleShipGame.unlockNoUpdate({ from: player0, gas: 3000000 });
+        let _bool = [0, 0, 0, 0, 0, 0],
+            _uints8 = [0, 0],
+            _uints = [0, 0, 0, 0, 0, 0],
+            _winner = "0x0000000000000000000000000000000000000000",
+            _maps = [0, 0, 0, 0, 0, 0, 0, 0],
+            _shiphash = [
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000",
+                "0x0000000000000000000000000000000000000000"
+            ],
+            _x1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            _y1 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            _x2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            _y2 = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            _sunk = [false, false, false, false, false, false, false, false, false, false];
+
+        await BattleShipGame.unlock(_bool, _uints8, _uints, _winner, _maps, _shiphash, _x1, _y1, _x2, _y2, _sunk, {
+            from: player0,
+            gas: 3000000
+        });
         let sChannelOn = await BattleShipGame.statechannelon();
         assert.equal(sChannelOn, false);
 
@@ -1227,7 +1286,16 @@ contract("BattleShips", function(accounts) {
 
         // player 0 inverts their board when revealing, this means they sometimes declare things as a hit which should be a miss
         let gameState = await setupGame(BattleShipGame, player0, player1, constructBasicShips, constructBasicShips);
-        let { winner, reveals } = await playThrough5x5(BattleShipGame, player0, player1, gameState, false, true, 400, true);
+        let { winner, reveals } = await playThrough5x5(
+            BattleShipGame,
+            player0,
+            player1,
+            gameState,
+            false,
+            true,
+            400,
+            true
+        );
         assert.equal(winner, player0);
         console.log("\t// FINALISE //");
 
@@ -1359,9 +1427,7 @@ const fraudDeclaredNotHit = async (contract, player, shipIndex1, x, y, moveCtr, 
 };
 
 const fraudDeclaredNotMiss = async (contract, player, x, y, moveCtr, signature) => {
-    let face = await contract.fraudDeclaredNotMiss(x, y, moveCtr, signature, { from: player });
-    console.log("logs", face.logs)
-
+    await contract.fraudDeclaredNotMiss(x, y, moveCtr, signature, { from: player });
     let phase = await contract.phase();
     // after fraud is declard we expect to have reset
     assert.equal(phase.toNumber(), Phase.Setup);

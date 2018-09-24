@@ -13,27 +13,13 @@ import { hashWithAddress } from "./stateChannelSaga";
 import { TimeLogger } from "./../utils/TimeLogger";
 import { IVerifyStateUpdate, IStateUpdate } from "./../entities/stateUpdates";
 
-export default function* offChain() {
-    yield takeEvery(ActionType.BOTH_PLAYERS_READY_OFF_CHAIN, bothPlayersReadyToPlayOffChain);
-    //yield takeEvery(ActionType.ACKNOWLEDGE_ATTACK_BROADCAST, acknowledgeAttackBroadcast);
-    yield takeEvery(ActionType.VERIFY_STATE_UPDATE, verifyStateUpdate);
-    yield takeEvery(ActionType.ACKNOWLEDGE_STATE_UPDATE, acknowledgeStateUpdate);
-    yield takeEvery(ActionType.PROPOSE_STATE_UPDATE, proposeStateUpdate);
+export default function* transactionOffChain() {
+    yield takeEvery(ActionType.PROPOSE_TRANSACTION_STATE_UPDATE, proposeTransactionStateUpdate);
+    // yield takeEvery(ActionType.VERIFY_STATE_UPDATE, verifyStateUpdate);
+    // yield takeEvery(ActionType.ACKNOWLEDGE_STATE_UPDATE, acknowledgeStateUpdate);
 }
 
-export function* bothPlayersReadyToPlayOffChain() {
-    const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
-    if (player.goesFirst) {
-        // transition to await attack
-        TimeLogger.theLogger.messageLog(player.address)("Await attack input");
-        yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));
-    } else {
-        // TODO: put in awaits later transition to await attack accept
-        //yield put(Action.updateCurrentActionType(ActionType.ATTACK_BROADCAST_AWAIT));
-    }
-}
-
-export function* proposeStateUpdate(action: ReturnType<typeof Action.proposeState>) {
+export function* proposeTransactionStateUpdate(action: ReturnType<typeof Action.proposeState>) {
     // user reveals a value
     const offChainBattleshipContract: Contract = yield select(Selector.offChainBattleshipContract);
     const onChainBattleshipContract: Contract = yield select(Selector.onChainBattleshipContract);
@@ -45,17 +31,31 @@ export function* proposeStateUpdate(action: ReturnType<typeof Action.proposeStat
         action.payload.serialiseData()
     );
     const channelAddress = yield call(onChainBattleshipContract.methods.stateChannel().call);
-
     const counterparty: ReturnType<typeof Selector.counterparty> = yield select(Selector.counterparty);
     const moveCtr = yield call(offChainBattleshipContract.methods.move_ctr().call);
     const round = yield call(offChainBattleshipContract.methods.round().call);
     const web3: ReturnType<typeof Selector.web3> = yield select(Selector.web3);
 
     // get hash data
-    const hashData = action.payload.hashData(moveCtr, round, offChainBattleshipContract.options.address);
+    //const hashData = action.payload.hashData(moveCtr, round, offChainBattleshipContract.options.address);
+    // create a transaction
+
     // sign that data and submit it
-    const sig = yield call(web3.eth.sign, hashData, player.address);
-    yield call(action.payload.getFunction(offChainBattleshipContract, sig).send, { from: player.address, gas: 300000 });
+    const func = action.payload.getFunction(offChainBattleshipContract, "0xbabababa");
+    const abi = func.encodeABI()
+
+    console.log(abi);
+    console.log(web3.eth.accounts)
+
+    // let face = web3.eth.accounts.signTransaction({
+    //     // TODO: 
+    //     nonce: 0,
+    //     chainId: 0,
+    //     to: counterparty.offChainBattleshipAddress,
+    //     data: abi,
+    //     gas: 3000000
+    // }, "nhiu")
+    return;
 
     // success, create a sig for the opponent
     const counterpartyData = action.payload.hashData(moveCtr, round, counterparty.offChainBattleshipAddress!);
@@ -202,31 +202,32 @@ export function* acknowledgeStateUpdate(action: ReturnType<typeof Action.acknowl
 
 export function* actionAfterAcknowledge(state: IStateUpdate) {
     if (state.name === "revealslot" || state.name === "revealsunk") {
-        // // we've sunk a ship, count how many have been sunk already
-        // const totalSinks = yield select(Selector.totalSinks)
-        // // TODO: this 9 is a hack, we should be checking our own open revealed ships
-        // if(totalSinks === 4) {
-        //     // do nothing, we've lost
-        // }
+        // we've sunk a ship, count how many have been sunk already
+        const totalSinks = yield select(Selector.totalSinks)
+        // TODO: this 9 is a hack, we should be checking our own open revealed ships
+        if(totalSinks === 9) {
+            // do nothing, we've lost
+        }
 
-        yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));
+        return Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT);
     }
 }
 
 // TODO: move this into the class structure
-export function* actionAfterVerify(state: IVerifyStateUpdate) {
-    if (state.name === "attack") {
+export function* actionAfterVerify(verifyState: IVerifyStateUpdate) {
+    if (verifyState.name === "attack") {
         yield put(Action.updateCurrentActionType(ActionType.REVEAL_INPUT_AWAIT));
     }
-    // else if(verifyState.name === "revealsunk") {
-    //     // we've sunk a ship, count how many have been sunk already
-    //     const totalSinks = yield select(Selector.totalSinks)
-    //     // TODO: this 9 is a hack, we should be checking our own open revealed ships
-    //     if(totalSinks === 9) {
-    //         // a win - move on to the opening the ships
-    //         yield put(Action.updateCurrentActionType(ActionType.PROPOSE_OPEN_SHIPS))
-    //     }
-    // }
+    else if(verifyState.name === "revealsunk") {
+        // we've sunk a ship, count how many have been sunk already
+        const totalSinks = yield select(Selector.totalSinks)
+        // TODO: this 9 is a hack, we should be checking our own open revealed ships
+        if(totalSinks === 9) {
+            // a win - move on to the opening the ships
+            yield put(Action.updateCurrentActionType(ActionType.PROPOSE_OPEN_SHIPS))
+        }
+    }
+
 }
 
 function recover(message: string, signature: string) {

@@ -3,18 +3,18 @@ import { Action, ActionType } from "../action/rootAction";
 import { Selector } from "../store";
 import { attackInput, attackBroadcast, revealInput, revealBroadcast } from "./attackRevealSaga";
 import {
-    attackInput as offChainAttackInput,
-    attackBroadcast as offChainAttackBroadcast,
-    revealInput as offChainRevealInput,
-    revealBroadcast as offChainRevealBroadcast
+    // attackInput as offChainAttackInput,
+    // attackBroadcast as offChainAttackBroadcast,
+    // revealInput as offChainRevealInput,
+    // revealBroadcast as offChainRevealBroadcast
 } from "./offChainSaga";
 import { PlayerStage } from "../entities/gameEntities";
 
 export default function* onOffTriage() {
-    yield takeEvery(ActionType.ATTACK_INPUT, createSwitch(attackInput, offChainAttackInput));
-    yield takeEvery(ActionType.ATTACK_BROADCAST, createSwitch(attackBroadcast, offChainAttackBroadcast));
-    yield takeEvery(ActionType.REVEAL_INPUT, createSwitch(revealInput, offChainRevealInput));
-    yield takeEvery(ActionType.REVEAL_BROADCAST, createSwitch(revealBroadcast, offChainRevealBroadcast));
+    yield takeEvery(ActionType.ATTACK_INPUT, attackInput);
+    yield takeEvery(ActionType.ATTACK_BROADCAST, attackBroadcast);
+    yield takeEvery(ActionType.REVEAL_INPUT, revealInput);
+    yield takeEvery(ActionType.REVEAL_BROADCAST, revealBroadcast);
 }
 
 function createSwitch<T extends (...args: any[]) => any>(onChainSaga, offChainSaga) {

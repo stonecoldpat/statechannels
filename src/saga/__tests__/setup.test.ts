@@ -16,6 +16,11 @@ import { generateStore } from "./../../store";
 import Web3 = require("web3");
 import { action } from "typesafe-actions";
 import { TimeLogger } from "../../utils/TimeLogger";
+import {
+    RevealSlotProposeStateUpdate,
+    RevealSunkProposeStateUpdate,
+    AttackProposeStateUpdate
+} from "../../entities/stateUpdates";
 
 const shipSizes = [5, 4, 3, 3, 2];
 
@@ -144,20 +149,40 @@ class TestBot {
         const initialState: IStore = store.getState();
         this.player = initialState.game.player;
 
-        this.FINAL_STATE = initialState.game.player.goesFirst
-            ? ActionType.REVEAL_BROADCAST_AWAIT
-            : ActionType.ATTACK_ACCEPT_AWAIT;
-        let i = 0;
+        this.FINAL_STATE = ActionType.PROPOSE_OPEN_SHIPS;
+
+        // initialState.game.player.goesFirst
+        //     ? ActionType.REVEAL_BROADCAST_AWAIT
+        //     : ActionType.ATTACK_ACCEPT_AWAIT;
 
         // TODO: this should be a class not a function
         let gameState: GameState;
         let attackIterator;
+        let sinks = 0;
+        let attackCount = 0;
         // we need to subscribe to the store to watch for certain events
         this.mUnsubsribe = store.subscribe(() => {
-            if (this.complete) return;
-            i++;
+            if (this.complete) {
+                
+
+                if (TimeLogger.theLogger.hasFormatted) {
+                    const log_file = fs.createWriteStream(__dirname + "/debug.log", { flags: "w" });
+                    const logs = TimeLogger.theLogger.formatDataLogs();
+                    logs.map(l => {
+                        l.map(g =>
+                            log_file.write(
+                                util.format(
+                                    `${g.event}:${g.subEvent}:${g.timeSpan}:${g.count}:${g.timeSpan / g.count}` + "\n"
+                                )
+                            )
+                        );
+                    });
+                } else TimeLogger.theLogger.formatDataLogs();
+                return;
+            }
 
             const state: IStore = store.getState();
+
             // console.log(state.currentActionType);
             switch (state.currentActionType) {
                 case ActionType.SETUP_STORE_SHIPS_AWAIT:
@@ -178,42 +203,66 @@ class TestBot {
                 case ActionType.ATTACK_INPUT_AWAIT:
                     // we're awaiting an attack, so lets make one
                     let attack = attackIterator.next().value;
+
+                    attackCount++;
+                    if (attackCount == 13) {
+                        this.complete = true;
+                    }
                     console.log("attack", attack);
 
-                    store.dispatch(Action.attackInput(attack.x, attack.y));
+                    store.dispatch(Action.proposeState(new AttackProposeStateUpdate(attack.x, attack.y, 0)));
 
                     break;
                 case ActionType.REVEAL_INPUT_AWAIT:
                     const latestMove = state.game.moves[state.game.moves.length - 1];
                     const revealResult = gameState.attackSquare(latestMove.x, latestMove.y);
                     console.log("reveal: ", revealToString(revealResult.reveal));
-                    if (revealResult.reveal === Reveal.Sink) {
-                        const log_file = fs.createWriteStream(__dirname + "/debug.log", { flags: "w" });
-                        TimeLogger.theLogger.logs.map(l => log_file.write(util.format(l.serialise()) + "\n"));
 
-                        console.log();
-                        return;
+                    if (revealResult.reveal === Reveal.Sink) {
+                        sinks++;
+                    }
+
+                    if (sinks === 4) {
+                        //TimeLogger.theLogger.dataLogs.map(l => log_file.write(util.format(l.serialise()) + "\n"));
+                        console.log("here");
+                        this.complete = true;
                     }
 
                     // TODO: ship index
                     let action =
-                        // revealResult.reveal === Reveal.Sink
-                        //     ? Action.revealInput(
-                        //           revealResult.reveal,
-                        //           revealResult.ship!.r,
-                        //           revealResult.ship!.x1,
-                        //           revealResult.ship!.y1,
-                        //           revealResult.ship!.x2,
-                        //           revealResult.ship!.y2,
-                        //           revealResult.shipIndex
-                        //       )
-                        //     :
-                        Action.revealInput(revealResult.reveal);
+                        revealResult.reveal === Reveal.Sink
+                            ? Action.proposeState(
+                                  new RevealSunkProposeStateUpdate(
+                                      latestMove.x,
+                                      latestMove.y,
+
+                                      revealResult.ship!.x1,
+                                      revealResult.ship!.y1,
+                                      revealResult.ship!.x2,
+                                      revealResult.ship!.y2,
+                                      revealResult.ship!.r,
+                                      revealResult.shipIndex!,
+                                      0
+                                  )
+                              )
+                            : Action.proposeState(
+                                  new RevealSlotProposeStateUpdate(
+                                      //TODO: change this state round - really it should be managed in the store not here
+                                      revealResult.reveal,
+                                      latestMove.x,
+                                      latestMove.y,
+                                      0
+                                  )
+                              );
 
                     store.dispatch(action);
+
                     break;
+
                 case this.FINAL_STATE:
+                    console.log("face");
                     this.complete = true;
+
                     break;
 
                 default:
@@ -327,13 +376,13 @@ describe("Saga setup", () => {
         store1.dispatch(actionSetupDeploy);
 
         while (!bot1.complete || !bot2.complete) {
-            if (Date.now() - timeStamp > 30000) throw new Error("exceeded timeout");
-            await delay(10);
+            if (Date.now() - timeStamp > 300000) throw new Error("exceeded timeout");
+            await delay(1000);
         }
 
         bot1.unsubscribe();
         bot2.unsubscribe();
-    }).timeout(30000);
+    }).timeout(300000);
 
     const delay = time =>
         new Promise(resolve => {
