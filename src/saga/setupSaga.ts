@@ -9,8 +9,8 @@ import { checkCurrentActionType } from "./checkCurrentActionType";
 const Web3Util = require("web3-utils");
 import { committedShips } from "./../utils/shipTools";
 
-const depositAmount = Web3Util.toWei("0.1", "ether");
-const betAmount = Web3Util.toWei("0.05", "ether");
+const depositAmount = Web3Util.toWei("1", "ether");
+const betAmount = Web3Util.toWei("0.01", "ether");
 
 export default function* setup() {
     yield takeEvery(ActionType.SETUP_DEPLOY, deployBattleship);

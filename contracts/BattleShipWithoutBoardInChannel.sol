@@ -359,7 +359,7 @@ contract BattleShipWithoutBoardInChannel {
         checkShipList(_size, _ships); 
         
         // Hash the ship commitment 
-        bytes32 sighash = keccak256(abi.encodePacked(_size, _ships, players[counterparty], round, address(this)));
+        bytes32 sighash = keccak256(abi.encodePacked(_size, _ships, players[counterparty], round, onChainBattleshipContract));
                 
         // Verify counterparty signed ship commitment
         // Thus, both parties have signed this commitment! (since party had to sign tx)
@@ -644,11 +644,10 @@ contract BattleShipWithoutBoardInChannel {
     
     // Check ship conditions. Should be in a straight line and on all valid slots. 
     function checkShipQuality(uint8 _x1, uint8 _y1, uint8 _x2, uint8 _y2, uint _r,  uint _shipindex, address _counterparty) internal view returns (bool) {
-        
          // Look up counterparty's ship and check commitment
         uint8 k;
         
-         // Is this the ship we are expecting? 
+        // Is this the ship we are expecting? 
         if(ships[_counterparty][_shipindex].hash == keccak256(abi.encodePacked(_x1, _y1, _x2, _y2, _r,_counterparty, round, onChainBattleshipContract))) {
             k = ships[_counterparty][_shipindex].k;
         } else {

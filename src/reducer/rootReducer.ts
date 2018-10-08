@@ -11,7 +11,6 @@ const currentActionTypeReducer = (
     action: ReturnType<typeof Action.updateCurrentActionType>
 ) => {
     if (action.type === ActionType.UPDATE_CURRENT_ACTION_TYPE) {
-        // console.log(action.payload.actionType);
         return action.payload.actionType;
     }
     // TODO: subscribers need to update as the first thing they atm

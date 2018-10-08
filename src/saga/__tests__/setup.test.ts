@@ -14,13 +14,19 @@ import { Action, ActionType } from "./../../action/rootAction";
 import { IShip, IStore, IPlayer, Reveal, PlayerStage } from "./../../entities/gameEntities";
 import { generateStore } from "./../../store";
 import Web3 = require("web3");
-import { action } from "typesafe-actions";
+
 import { TimeLogger } from "../../utils/TimeLogger";
 import {
     RevealSlotProposeStateUpdate,
     RevealSunkProposeStateUpdate,
-    AttackProposeStateUpdate
+    AttackProposeStateUpdate,
+    OpenShipsProposeStateUpdate,
+    FinishGameProposeStateUpdate,
+    PlaceBetProposeStateUpdate,
+    StoreShipsProposeStateUpdate,
+    ReadyToPlayProposeStateUpdate
 } from "../../entities/stateUpdates";
+import { committedShips } from "../../utils/shipTools";
 
 const shipSizes = [5, 4, 3, 3, 2];
 
@@ -140,16 +146,16 @@ let store2 = generateStore(state2);
 class TestBot {
     private mUnsubsribe;
     public complete: boolean = false;
-    public FINAL_STATE = ActionType.ATTACK_INPUT_AWAIT;
+    public FINAL_STATE = ActionType.OPEN_SHIPS_INPUT_AWAIT;
     private readonly player: IPlayer;
     // TODO: we should be reading this dynamically from the contract
     public readonly round = 0;
 
-    constructor(public readonly store) {
+    constructor(public readonly store, id: number) {
         const initialState: IStore = store.getState();
         this.player = initialState.game.player;
 
-        this.FINAL_STATE = ActionType.PROPOSE_OPEN_SHIPS;
+        this.FINAL_STATE = ActionType.OPEN_SHIPS_INPUT_AWAIT;
 
         // initialState.game.player.goesFirst
         //     ? ActionType.REVEAL_BROADCAST_AWAIT
@@ -159,33 +165,19 @@ class TestBot {
         let gameState: GameState;
         let attackIterator;
         let sinks = 0;
-        let attackCount = 0;
+        let attacks = 0;
+        let completedGames = 0;
+        //let attackCount = 0;
         // we need to subscribe to the store to watch for certain events
         this.mUnsubsribe = store.subscribe(() => {
-            if (this.complete) {
-                
-
-                if (TimeLogger.theLogger.hasFormatted) {
-                    const log_file = fs.createWriteStream(__dirname + "/debug.log", { flags: "w" });
-                    const logs = TimeLogger.theLogger.formatDataLogs();
-                    logs.map(l => {
-                        l.map(g =>
-                            log_file.write(
-                                util.format(
-                                    `${g.event}:${g.subEvent}:${g.timeSpan}:${g.count}:${g.timeSpan / g.count}` + "\n"
-                                )
-                            )
-                        );
-                    });
-                } else TimeLogger.theLogger.formatDataLogs();
-                return;
-            }
+            // if (this.complete) {
+            //     const log_file = fs.createWriteStream(__dirname + "/" + id + "-timings.log", { flags: "w" });
+            //     TimeLogger.theLogger.timeSpanDataLogs.map(l => log_file.write(util.format(l.serialise()) + "\n"));
+            // }
 
             const state: IStore = store.getState();
-
-            // console.log(state.currentActionType);
             switch (state.currentActionType) {
-                case ActionType.SETUP_STORE_SHIPS_AWAIT:
+                case ActionType.SETUP_STORE_SHIPS_AWAIT: {
                     const contractAddress = state.game.onChainBattleshipContract!.options.address;
                     const boardAndShips = BoardBuilder.constructBasicShips(
                         contractAddress,
@@ -200,42 +192,33 @@ class TestBot {
                     attackIterator = gameState.nextAttack();
                     store.dispatch(Action.setupStoreShips(boardAndShips.ships, boardAndShips.board));
                     break;
-                case ActionType.ATTACK_INPUT_AWAIT:
+                }
+                case ActionType.ATTACK_INPUT_AWAIT: {
                     // we're awaiting an attack, so lets make one
                     let attack = attackIterator.next().value;
-
-                    attackCount++;
-                    if (attackCount == 13) {
-                        this.complete = true;
-                    }
                     console.log("attack", attack);
-
-                    store.dispatch(Action.proposeState(new AttackProposeStateUpdate(attack.x, attack.y, 0)));
+                    store.dispatch(Action.proposeTransactionState(new AttackProposeStateUpdate(attack.x, attack.y, 0)));
 
                     break;
-                case ActionType.REVEAL_INPUT_AWAIT:
+                }
+                case ActionType.REVEAL_INPUT_AWAIT: {
                     const latestMove = state.game.moves[state.game.moves.length - 1];
                     const revealResult = gameState.attackSquare(latestMove.x, latestMove.y);
                     console.log("reveal: ", revealToString(revealResult.reveal));
+
+                    
 
                     if (revealResult.reveal === Reveal.Sink) {
                         sinks++;
                     }
 
-                    if (sinks === 4) {
-                        //TimeLogger.theLogger.dataLogs.map(l => log_file.write(util.format(l.serialise()) + "\n"));
-                        console.log("here");
-                        this.complete = true;
-                    }
-
                     // TODO: ship index
                     let action =
                         revealResult.reveal === Reveal.Sink
-                            ? Action.proposeState(
+                            ? Action.proposeTransactionState(
                                   new RevealSunkProposeStateUpdate(
                                       latestMove.x,
                                       latestMove.y,
-
                                       revealResult.ship!.x1,
                                       revealResult.ship!.y1,
                                       revealResult.ship!.x2,
@@ -245,7 +228,7 @@ class TestBot {
                                       0
                                   )
                               )
-                            : Action.proposeState(
+                            : Action.proposeTransactionState(
                                   new RevealSlotProposeStateUpdate(
                                       //TODO: change this state round - really it should be managed in the store not here
                                       revealResult.reveal,
@@ -256,11 +239,126 @@ class TestBot {
                               );
 
                     store.dispatch(action);
-
                     break;
+                }
+                case ActionType.OPEN_SHIPS_INPUT_AWAIT: {
+                    // propse the open ships state transition
+                    console.log("open ships");
+                    const contractAddress = state.game.onChainBattleshipContract!.options.address;
+                    state.game.offChainBattleshipContract.methods
+                        .round()
+                        .call()
+                        .then(round => {
+                            const openShips = BoardBuilder.constructBasicShips(
+                                contractAddress,
+                                this.player.address,
+                                round
+                            );
+                            store.dispatch(
+                                Action.proposeTransactionState(
+                                    new OpenShipsProposeStateUpdate(
+                                        openShips.ships.map(s => s.x1),
+                                        openShips.ships.map(s => s.y1),
+                                        openShips.ships.map(s => s.x2),
+                                        openShips.ships.map(s => s.y2),
+                                        openShips.ships.map(s => s.r),
+                                        0
+                                    )
+                                )
+                            );
+                        });
+                    break;
+                }
 
+                case ActionType.FINISH_GAME_INPUT_AWAIT: {
+                    console.log("finish game");
+                    store.dispatch(Action.proposeTransactionState(new FinishGameProposeStateUpdate(0)));
+                    break;
+                }
+
+                case ActionType.PLACE_BET_INPUT_AWAIT: {
+                    completedGames++;
+                    console.log("place bet");
+                    console.log("completed games", completedGames);
+                    if (completedGames % 20 === 0) {
+                        console.log("writing logs", completedGames);
+                        // write the log files
+                        // const log_file = fs.createWriteStream(
+                        //     __dirname + "/" + id + "-" + completedGames + "-intro.log",
+                        //     { flags: "w" }
+                        // );
+                        // TimeLogger.theLogger.timeSpanDataLogs.map(l =>
+                        //     log_file.write(util.format(l.serialise()) + "\n")
+                        // );
+                        // write the log files
+                        const log_file = fs.createWriteStream(
+                            __dirname + "/" + id + "-" + completedGames + "-subs.log",
+                            { flags: "w" }
+                        );
+                        TimeLogger.theLogger.timeSpanDataSubSubLogs.map(l =>
+                            log_file.write(util.format(l.serialise()) + "\n")
+                        );
+                        if (completedGames === 100) {
+                            console.log("games ended");
+                            this.complete = true;
+                            return;
+                        }
+
+
+                    }
+
+                    store.dispatch(Action.proposeTransactionState(new PlaceBetProposeStateUpdate(10, 0)));
+                    break;
+                }
+                case ActionType.STORE_SHIPS_INPUT_AWAIT: {
+                    console.log("store ships");
+                    gameState.resetAttacks();
+                    attackIterator = gameState.nextAttack();
+                    const contractAddress = state.game.onChainBattleshipContract!.options.address;
+
+                    // get the counterparties signature - we're submmiting boards on their behalf
+                    // get the round
+                    state.game.offChainBattleshipContract.methods
+                        .round()
+                        .call()
+                        .then(round => {
+                            const boardAndShips = BoardBuilder.constructBasicShips(
+                                contractAddress,
+                                state.opponent.address,
+                                round
+                            );
+
+                            const ships = committedShips(
+                                state.game.onChainBattleshipContract.options.address,
+                                boardAndShips.ships.map(s => s.size),
+                                boardAndShips.ships.map(s => s.commitment),
+                                round,
+                                state.opponent.address
+                            );
+
+                            state.web3.eth.sign(ships.commitment, state.opponent.address).then(sig => {
+                                store.dispatch(
+                                    Action.proposeTransactionState(
+                                        new StoreShipsProposeStateUpdate(
+                                            boardAndShips.ships.map(s => s.size),
+                                            boardAndShips.ships.map(a => a.commitment),
+                                            sig,
+                                            0
+                                        )
+                                    )
+                                );
+                            });
+                        });
+                    break;
+                }
+
+                case ActionType.READY_TO_PLAY_INPUT_AWAIT: {
+                    console.log("ready to play");
+                    store.dispatch(Action.proposeTransactionState(new ReadyToPlayProposeStateUpdate(0)));
+                    break;
+                }
                 case this.FINAL_STATE:
-                    console.log("face");
+                    console.log("ended");
                     this.complete = true;
 
                     break;
@@ -306,7 +404,7 @@ class SinkReveal extends RevealResult {
 }
 
 class GameState {
-    constructor(readonly board: string[][], readonly ships: IShip[]) {}
+    constructor(private readonly board: string[][], private readonly ships: IShip[]) {}
 
     public attackSquare(x: number, y: number): RevealResult {
         /// lookup the position on the board. and find if it's a hit or miss
@@ -329,16 +427,22 @@ class GameState {
         }
     }
 
-    public *nextAttack() {
-        let x = 0;
-        let y = 0;
+    private x = 0;
+    private y = 0;
+    public resetAttacks() {
+        this.x = 0;
+        this.y = 0;
+        // TODO: dont do this, we should be creating a new gamestate for each round
+        this.ships.forEach(s => (s.hits = 0));
+    }
 
-        while (x < 10 && y < 10) {
-            yield { x: x, y: y };
-            y++;
-            if (y % 5 == 0) {
-                x++;
-                y = 0;
+    public *nextAttack() {
+        while (this.x < 10 && this.y < 10) {
+            yield { x: this.x, y: this.y };
+            this.y++;
+            if (this.y % 5 == 0) {
+                this.x++;
+                this.y = 0;
             }
         }
     }
@@ -370,19 +474,19 @@ describe("Saga setup", () => {
     it("is my next test", async () => {
         let timeStamp = Date.now();
 
-        const bot1 = new TestBot(store1);
-        const bot2 = new TestBot(store2);
+        const bot1 = new TestBot(store1, 1);
+        const bot2 = new TestBot(store2, 2);
 
         store1.dispatch(actionSetupDeploy);
 
         while (!bot1.complete || !bot2.complete) {
-            if (Date.now() - timeStamp > 300000) throw new Error("exceeded timeout");
+            if (Date.now() - timeStamp > 300000000) throw new Error("exceeded timeout");
             await delay(1000);
         }
 
         bot1.unsubscribe();
         bot2.unsubscribe();
-    }).timeout(300000);
+    }).timeout(300000000);
 
     const delay = time =>
         new Promise(resolve => {

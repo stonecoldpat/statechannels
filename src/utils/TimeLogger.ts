@@ -4,6 +4,8 @@ export class TimeLogger {
     public static theLogger = new TimeLogger();
     messageLogs: TimeLog[] = [];
     dataLogs: TimeDataLog[] = [];
+    timeSpanDataLogs: TimeSpanDataLog[] = []
+    timeSpanDataSubSubLogs: TimeSpanDataSubSubLog[] = []
 
     public messageLog(address: string) {
         return (eventName: string) => {
@@ -19,10 +21,15 @@ export class TimeLogger {
         return dataLog;
     }
 
+    public dataSpanLog(address: string, event: string, subEvent: string, data: string, timeSpan: number){
+        this.timeSpanDataLogs.push(new TimeSpanDataLog(address, event, subEvent, data, timeSpan))
+    }
 
-    public hasFormatted = false;
+    public dataSpanSubSubLog(address: string, event: string, subEvent: string, subSubEvent: string, data: string, timeSpan: number){
+        this.timeSpanDataSubSubLogs.push(new TimeSpanDataSubSubLog(address, event, subEvent, subSubEvent, data, timeSpan))
+    }
+
     public formatDataLogs() {
-        this.hasFormatted = true;
         let groupBy = function(xs, key) {
             return xs.reduce(function(rv, x) {
                 (rv[x[key]] = rv[x[key]] || []).push(x);
@@ -84,6 +91,37 @@ export class TimeLogger {
 }
 
 let globalCount = 0;
+
+class TimeSpanDataLog {
+    constructor(
+        public readonly player: string,
+        public readonly event: string,
+        public readonly subEvent: string,
+        public readonly data: string,
+        public readonly timeSpan: number
+    ) {
+    }
+
+    serialise(): string {
+        return `${this.player}:${this.event}:${this.subEvent}:${this.timeSpan}:${this.data}`;
+    }
+}
+
+class TimeSpanDataSubSubLog {
+    constructor(
+        public readonly player: string,
+        public readonly event: string,
+        public readonly subEvent: string,
+        public readonly subSubEvent: string,
+        public readonly data: string,
+        public readonly timeSpan: number
+    ) {
+    }
+
+    serialise(): string {
+        return `${this.player}:${this.event}:${this.subEvent}:${this.subSubEvent}:${this.timeSpan}:${this.data}`;
+    }
+}
 
 class TimeLog {
     public readonly time: number;

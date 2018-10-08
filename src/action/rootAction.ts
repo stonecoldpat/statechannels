@@ -62,8 +62,13 @@ export enum ActionType {
     VERIFY_STATE_UPDATE = "VERIFY_STATE_UPDATE",
     ACKNOWLEDGE_STATE_UPDATE = "ACKNOWLEDGE_STATE_UPDATE",
     PROPOSE_STATE_UPDATE = "PROPOSE_STATE_UPDATE",
-    PROPOSE_OPEN_SHIPS = "PROPOSE_OPEN_SHIPS",
-    PROPOSE_TRANSACTION_STATE_UPDATE = "PROPOSE_TRANSACTION_STATE_UPDATE"
+    OPEN_SHIPS_INPUT_AWAIT = "OPEN_SHIPS_INPUT_AWAIT",
+    FINISH_GAME_INPUT_AWAIT = "FINISH_GAME_INPUT_AWAIT",
+    PLACE_BET_INPUT_AWAIT = "PLACE_BET_INPUT_AWAIT",
+    STORE_SHIPS_INPUT_AWAIT = "STORE_SHIPS_INPUT_AWAIT",
+    READY_TO_PLAY_INPUT_AWAIT = "READY_TO_PLAY_INPUT_AWAIT",
+    PROPOSE_TRANSACTION_STATE_UPDATE = "PROPOSE_TRANSACTION_STATE_UPDATE",
+    ACKNOWLEDGE_TRANSACTION_STATE_UPDATE = "ACKNOWLEDGE_TRANSACTION_STATE_UPDATE"
 }
 
 const createAction = <P>(type: string, payload: P) => {
@@ -148,7 +153,8 @@ export const Action = {
         createAction(ActionType.ACKNOWLEDGE_STATE_UPDATE, payload),
     proposeState: (payload: IProposeStateUpdate) => createAction(ActionType.PROPOSE_STATE_UPDATE, payload),
 
-    proposeTransactionState: (payload: IProposeStateUpdate) => createAction(ActionType.PROPOSE_TRANSACTION_STATE_UPDATE, payload)
+    proposeTransactionState: (payload: IProposeStateUpdate) => createAction(ActionType.PROPOSE_TRANSACTION_STATE_UPDATE, payload),
+    acknowledgeTransactionState: (payload: IAcknowledgeStateUpdate) => createAction(ActionType.ACKNOWLEDGE_TRANSACTION_STATE_UPDATE, payload)
 };
 
 export type Action = TypesafeActions.ActionType<typeof Action>;

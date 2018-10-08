@@ -16,7 +16,7 @@ import { IVerifyStateUpdate, IStateUpdate } from "./../entities/stateUpdates";
 export default function* offChain() {
     yield takeEvery(ActionType.BOTH_PLAYERS_READY_OFF_CHAIN, bothPlayersReadyToPlayOffChain);
     //yield takeEvery(ActionType.ACKNOWLEDGE_ATTACK_BROADCAST, acknowledgeAttackBroadcast);
-    yield takeEvery(ActionType.VERIFY_STATE_UPDATE, verifyStateUpdate);
+    //yield takeEvery(ActionType.VERIFY_STATE_UPDATE, verifyStateUpdate);
     yield takeEvery(ActionType.ACKNOWLEDGE_STATE_UPDATE, acknowledgeStateUpdate);
     yield takeEvery(ActionType.PROPOSE_STATE_UPDATE, proposeStateUpdate);
 }
@@ -83,9 +83,12 @@ export function* proposeStateUpdate(action: ReturnType<typeof Action.proposeStat
         action.payload.serialiseData(),
         log.id
     );
+
+    // TODO: remvoe this whole file in favour of the transaction workflow
+    const dummyTransaction = ""
     yield call(
         counterparty.sendAction,
-        Action.verifyState(action.payload.createVerifyStateUpdate(onChainSig, counterpartySig, channelSig))
+        Action.verifyState(action.payload.createVerifyStateUpdate(dummyTransaction, onChainSig, counterpartySig, channelSig))
     );
 }
 
