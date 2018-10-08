@@ -8,7 +8,10 @@ import { Selector } from "../store";
 import { Reveal } from "./../entities/gameEntities";
 
 export default function* attackReveal() {
-    // TODO: remove this
+    yield takeEvery(ActionType.ATTACK_INPUT, attackInput);
+    yield takeEvery(ActionType.ATTACK_BROADCAST, attackBroadcast);
+    yield takeEvery(ActionType.REVEAL_INPUT, revealInput);
+    yield takeEvery(ActionType.REVEAL_BROADCAST, revealBroadcast);
 }
 
 export function* attackInput(action: ReturnType<typeof Action.attackInput>) {

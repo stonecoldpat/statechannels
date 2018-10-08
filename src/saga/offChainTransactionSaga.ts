@@ -2,27 +2,20 @@ import { call, takeEvery, select, put } from "redux-saga/effects";
 import { Action, ActionType } from "../action/rootAction";
 import { Contract } from "web3-eth-contract";
 import Tx from "ethereumjs-tx";
-import Util from "ethereumjs-util";
-//var Tx = require('ethereumjs-tx');
-
-// const BattleShipWithoutBoardInChannel = require("./../../build/contracts/BattleShipWithoutBoardInChannel.json");
-// const StateChannelFactory = require("./../../build/contracts/StateChannelFactory.json");
-// const StateChannel = require("./../../build/contracts/StateChannel.json");
 import Web3 from "web3";
 import Web3Util from "web3-utils";
 import ethereumjs from "ethereumjs-util";
-import { dummyRandom } from "./sagaGlobals";
 import { Selector } from "../store";
 import { hashWithAddress } from "./stateChannelSaga";
 import { TimeLogger } from "./../utils/TimeLogger";
 import { IVerifyStateUpdate, IStateUpdate } from "./../entities/stateUpdates";
-import { PlayerStage } from "../entities/gameEntities";
+export const dummyRandom = 137;
 
 export default function* transactionOffChain() {
     yield takeEvery(ActionType.PROPOSE_TRANSACTION_STATE_UPDATE, proposeTransactionStateUpdate);
     yield takeEvery(ActionType.VERIFY_STATE_UPDATE, verifyTransactionStateUpdate);
-    // yield takeEvery(ActionType.VERIFY_STATE_UPDATE, verifyStateUpdate);
     yield takeEvery(ActionType.ACKNOWLEDGE_TRANSACTION_STATE_UPDATE, acknowledgeTransactionStateUpdate);
+    yield takeEvery(ActionType.BOTH_PLAYERS_READY_OFF_CHAIN, bothPlayersReadyToPlayOffChain);
 }
 
 //TODO: obiously remove - we should have a wallet for handling this
@@ -32,6 +25,18 @@ function getPrivKey(address: string) {
     } else if (address === "0xffcf8fdee72ac11b5c542428b35eef5769c409f0") {
         return "0x6cbed15c793ce57650b9877cf6fa156fbef513c4e6134f022a85b1ffdd59b2a1";
     } else throw new Error("Unrecognised address: " + address);
+}
+
+export function* bothPlayersReadyToPlayOffChain() {
+    const player: ReturnType<typeof Selector.player> = yield select(Selector.player);
+    if (player.goesFirst) {
+        // transition to await attack
+        TimeLogger.theLogger.messageLog(player.address)("Await attack input");
+        yield put(Action.updateCurrentActionType(ActionType.ATTACK_INPUT_AWAIT));
+    } else {
+        // TODO: put in awaits later transition to await attack accept
+        //yield put(Action.updateCurrentActionType(ActionType.ATTACK_BROADCAST_AWAIT));
+    }
 }
 
 const verifySig = (transaction, v: string, r: string, s: string) => {
