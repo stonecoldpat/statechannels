@@ -15,6 +15,7 @@
     "ethereumjs-util": "^5.2.0",
     "redux": "^4.0.0",
     "redux-saga": "^0.16.0",
+    "truffle": "^4.1.14",
     "web3": "^1.0.0-beta.36",
     "web3-eth-contract": "^1.0.0-beta.36",
     "web3-utils": "^1.0.0-beta.36"
